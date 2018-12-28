@@ -1,30 +1,9 @@
 import tensorflow as tf
 
-COLUMNS = ["row_id", "column_id", "interaction", "row_name", "column_name", "interaction_weight", "interaction_value"]
+COLUMNS = ["row_token_id", "column_token_id", "interaction",
+           "row_token", "column_token", "glove_weight", "glove_value"]
 DEFAULTS = [[0], [0], [0.0], ["null"], ["null"], [0.0], [0.0]]
-LABEL_COL = "interaction_value"
-
-
-def get_feature_columns(vocab_size, embedding_size=64):
-    row_fc = tf.feature_column.categorical_column_with_identity("row_id", vocab_size, 0)
-    column_fc = tf.feature_column.categorical_column_with_identity("column_id", vocab_size, 0)
-
-    row_embed = tf.feature_column.embedding_column(row_fc, embedding_size)
-    column_embed = tf.feature_column.embedding_column(column_fc, embedding_size)
-    shared_embed = tf.feature_column.shared_embedding_columns([row_fc, column_fc], embedding_size)
-
-    row_bias = tf.feature_column.embedding_column(row_fc, 1)
-    column_bias = tf.feature_column.embedding_column(column_fc, 1)
-    shared_bias = tf.feature_column.shared_embedding_columns([row_fc, column_fc], 1)
-
-    return {
-        "row_embed": row_embed,
-        "column_embed": column_embed,
-        "shared_embed": shared_embed,
-        "row_bias": row_bias,
-        "column_bias": column_bias,
-        "shared_bias": shared_bias,
-    }
+LABEL_COL = "glove_value"
 
 
 def get_input_fn(csv_path, mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
@@ -32,7 +11,7 @@ def get_input_fn(csv_path, mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
         def parse_csv(value):
             columns = tf.decode_csv(value, DEFAULTS)
             features = dict(zip(COLUMNS, columns))
-            label = features.pop(LABEL_COL)
+            label = features[LABEL_COL]
             return features, label
 
         # read, parse, shuffle and batch dataset
@@ -48,12 +27,15 @@ def get_input_fn(csv_path, mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
     return input_fn
 
 
-def serving_input_fn(string_features=("row_name", "column_name")):
-    features = {
-        key: tf.placeholder(tf.string, [None])
-        for key in string_features
-    }
-    return tf.estimator.export.ServingInputReceiver(
-        features=features,
-        receiver_tensors=features
-    )
+def get_serving_input_fn(string_features=("row_token", "column_token")):
+    def serving_input_fn():
+        features = {
+            key: tf.placeholder(tf.string, [None], name=key)
+            for key in string_features
+        }
+        return tf.estimator.export.ServingInputReceiver(
+            features=features,
+            receiver_tensors=features
+        )
+
+    return serving_input_fn

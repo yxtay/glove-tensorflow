@@ -101,17 +101,17 @@ def create_interaction_matrix(text_tokens, token2id, context_size=5):
 
 
 def create_glove_dataframe(interaction, id2token, value_minimum=0):
-    df = pd.DataFrame({"row_index": interaction.row,
-                       "column_index": interaction.col,
+    df = pd.DataFrame({"row_token_id": interaction.row,
+                       "column_token_id": interaction.col,
                        "interaction": interaction.data})
     df = df[df["interaction"] != 0]
     logger.info("interaction dataframe created.")
     logger.info("dataframe shape: %s.", df.shape)
-    df["row_name"] = np.array(id2token)[df["row_index"]]
-    df["column_name"] = np.array(id2token)[df["column_index"]]
-    df["interaction_weight"] = glove_weight(df["interaction"])
-    df["interaction_value"] = np.log(df["interaction"])
-    df = df[df["interaction_value"] > value_minimum]
+    df["row_token"] = np.array(id2token)[df["row_token_id"]]
+    df["column_token"] = np.array(id2token)[df["column_token_id"]]
+    df["glove_weight"] = glove_weight(df["interaction"])
+    df["glove_value"] = np.log(df["interaction"])
+    df = df[df["glove_value"] > value_minimum]
     df = df.sample(frac=1, random_state=42)
     logger.info("dataframe shape: %s.", df.shape)
     return df

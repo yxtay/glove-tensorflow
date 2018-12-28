@@ -105,51 +105,51 @@ MetaGraphDef with tag-set: 'serve' contains the following SignatureDefs:
 
 signature_def['serving_default']:
   The given SavedModel SignatureDef contains the following input(s):
-    inputs['column_name'] tensor_info:
+    inputs['column_token'] tensor_info:
         dtype: DT_STRING
         shape: (-1)
-        name: Placeholder_1:0
-    inputs['row_name'] tensor_info:
+        name: column_token:0
+    inputs['row_token'] tensor_info:
         dtype: DT_STRING
         shape: (-1)
-        name: Placeholder:0
+        name: row_token:0
   The given SavedModel SignatureDef contains the following output(s):
     outputs['column_bias'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1)
-        name: mf/column_bias_lookup/Identity:0
+        name: mf/column_token_bias_lookup/Identity:0
     outputs['column_embed'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 64)
-        name: mf/column_embed_lookup/Identity:0
-    outputs['embed_product'] tensor_info:
+        name: mf/column_token_embed_lookup/Identity:0
+    outputs['embed_norm_product'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1)
-        name: mf/Sum:0
+        name: similarity/Sum:0
     outputs['row_bias'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1)
-        name: mf/row_bias_lookup/Identity:0
+        name: mf/row_token_bias_lookup/Identity:0
     outputs['row_embed'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 64)
-        name: mf/row_embed_lookup/Identity:0
-    outputs['top_k_column_names'] tensor_info:
+        name: mf/row_token_embed_lookup/Identity:0
+    outputs['top_k_column_string'] tensor_info:
         dtype: DT_STRING
         shape: (-1, 100)
-        name: similarity/column_string_lookup_Lookup:0
+        name: similarity/column_token_string_lookup_Lookup:0
     outputs['top_k_column_similarity'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 100)
-        name: similarity/TopKV2_1:0
-    outputs['top_k_row_names'] tensor_info:
+        name: similarity/top_k_sim_column_token:0
+    outputs['top_k_row_string'] tensor_info:
         dtype: DT_STRING
         shape: (-1, 100)
-        name: similarity/row_string_lookup_Lookup:0
+        name: similarity/row_token_string_lookup_Lookup:0
     outputs['top_k_row_similarity'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 100)
-        name: similarity/TopKV2:0
+        name: similarity/top_k_sim_row_token:0
   Method name is: tensorflow/serving/predict
 ```
 
@@ -169,88 +169,87 @@ Sample response
 {
     "predictions": [
         {
-            "top_k_row_names": [
+            "top_k_row_string": [
                 "man",
                 "woman",
-                "person",
-                "girl",
                 "young",
-                "doctor",
-                "god",
-                "child",
-                "men",
+                "leaving",
+                "named",
                 "love",
+                "child",
+                "wrote",
+                "children",
+                "death",
                 ...
             ],
             "top_k_row_similarity": [
                 1,
-                0.747999,
-                0.684991,
-                0.634778,
-                0.587861,
-                0.563282,
-                0.557204,
-                0.553089,
-                0.552128,
-                0.548473,
-                0.529555,
+                0.858384,
+                0.843938,
+                0.827622,
+                0.823886,
+                0.817748,
+                0.812745,
+                0.811423,
+                0.805291,
+                0.804582,
                 ...
             ],
             "row_embed": [
-                -0.540615,
-                0.105328,
-                -0.0805282,
-                -0.256874,
-                -0.0443556,
-                -0.274111,
-                -0.173894,
-                0.277241,
-                -0.265513,
-                -0.159817,
+                0.110241,
+                -0.0781973,
+                0.252237,
+                0.173164,
+                -0.0698477,
+                0.121707,
+                0.199838,
+                0.282855,
+                -0.336472,
+                0.11848,
                 ...
             ],
-            "row_bias": 0.0635015,
-            "top_k_column_names": [
+            "row_bias": 0.00140062,
+            "top_k_column_string": [
                 "man",
                 "woman",
-                "men",
-                "person",
-                "girl",
-                "children",
-                "young",
-                "god",
+                "wrote",
+                "named",
                 "child",
-                "son",
+                "young",
+                "children",
+                "person",
+                "love",
+                "god",
                 ...
             ],
             "top_k_column_similarity": [
                 1,
-                0.74111,
-                0.668318,
-                0.654749,
-                0.654203,
-                0.59045,
-                0.589824,
-                0.581404,
-                0.581264,
-                0.546073,
+                0.870042,
+                0.822171,
+                0.818766,
+                0.810546,
+                0.802626,
+                0.799576,
+                0.795452,
+                0.787946,
+                0.787853,
                 ...
             ],
             "column_embed": [
-                -0.24833,
-                0.162511,
-                -0.329551,
-                -0.438676,
-                0.193193,
-                -0.210588,
-                -0.237587,
-                0.385656,
-                -0.187433,
-                0.224222,
+                0.131286,
+                -0.220142,
+                0.164308,
+                0.172627,
+                -0.107009,
+                0.154377,
+                -0.149073,
+                0.365269,
+                -0.288956,
+                -0.035981,
                 ...
             ],
-            "column_bias": -0.0147059,
-            "embed_product": 2.05853
+            "column_bias": -0.0476088,
+            "embed_norm_product": 0.73634,
         }
     ]
 }

@@ -23,9 +23,23 @@ The following script downloads the data, processes it to prepare the vocabulary 
 python -m src.data.text8
 ```
 
+**Sample data**
+
+| row_token_id | column_token_id | interaction | row_token  | column_token | glove_weight | glove_value |
+|--------------|-----------------|-------------|------------|--------------|--------------|-------------|
+| 608          | 247             | 1.5833      | town       | free         | 0.0331       | 0.4595      |
+| 1070         | 53              | 3.4166      | magazine   | can          | 0.0591       | 1.2286      |
+| 7050         | 5239            | 2.0         | syllables  | numbered     | 0.0395       | 0.6931      |
+| 5315         | 1391            | 1.4166      | malta      | geography    | 0.0305       | 0.3483      |
+| 364          | 0               | 1481.7500   | never      | \<UNK\>        | 1.0          | 7.3009      |
+| 269          | 144             | 15.6499     | line       | form         | 0.1850       | 2.7504      |
+| 631          | 2895            | 1.5333      | characters | gary         | 0.0324       | 0.4274      |
+| 1437         | 74              | 7.1166      | attacks    | would        | 0.1024       | 1.9624      |
+| 6788         | 4522            | 2.0         | sexually   | adults       | 0.0395       | 0.6931      |
+
 **Usage**
 
-```bash
+```
 usage: text8.py [-h] [--url URL] [--dest DEST] [--vocab-size VOCAB_SIZE]
                 [--coverage COVERAGE] [--context-size CONTEXT_SIZE] [--reset]
                 [--log-path LOG_PATH]
@@ -56,7 +70,7 @@ python -m trainer.glove
 
 **Usage**
 
-```bash
+```
 usage: glove.py [-h] [--train-csv TRAIN_CSV] [--vocab-json VOCAB_JSON]
                 [--job-dir JOB_DIR] [--restore]
                 [--embedding-size EMBEDDING_SIZE] [--k K]
@@ -93,14 +107,16 @@ tensorboard --logdir checkpoints/
 The trained and serialised model may be served with TensorFlow Serving.
 
 ```bash
+CHECKPOINT_PATH=checkpoints/glove/export/exporter
+
 docker run --rm -p 8500:8500 -p 8501:8501 \
---mount type=bind,source=$(pwd)/checkpoints/glove/export/exporter,target=/models/glove \
--e MODEL_NAME=glove -t tensorflow/serving
+  --mount type=bind,source=$(pwd)/${CHECKPOINT_PATH},target=/models/glove \
+  -e MODEL_NAME=glove -t tensorflow/serving
 ```
 
 **Model signature**
 
-```bash
+```
 MetaGraphDef with tag-set: 'serve' contains the following SignatureDefs:
 
 signature_def['serving_default']:
@@ -134,22 +150,22 @@ signature_def['serving_default']:
         dtype: DT_FLOAT
         shape: (-1, 64)
         name: mf/row_token_embed_lookup/Identity:0
-    outputs['top_k_column_string'] tensor_info:
-        dtype: DT_STRING
-        shape: (-1, 100)
-        name: similarity/column_token_string_lookup_Lookup:0
     outputs['top_k_column_similarity'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 100)
         name: similarity/top_k_sim_column_token:0
-    outputs['top_k_row_string'] tensor_info:
+    outputs['top_k_column_string'] tensor_info:
         dtype: DT_STRING
         shape: (-1, 100)
-        name: similarity/row_token_string_lookup_Lookup:0
+        name: similarity/column_token_string_lookup_Lookup:0
     outputs['top_k_row_similarity'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 100)
         name: similarity/top_k_sim_row_token:0
+    outputs['top_k_row_string'] tensor_info:
+        dtype: DT_STRING
+        shape: (-1, 100)
+        name: similarity/row_token_string_lookup_Lookup:0
   Method name is: tensorflow/serving/predict
 ```
 
@@ -160,96 +176,97 @@ Sample request
 ```bash
 curl -X POST \
   http://localhost:8501/v1/models/glove:predict \
-  -d '{"instances": [{"row_name": "man", "column_name": "man"}]}'
+  -d '{"instances": [{"row_token": "man", "column_token": "man"}]}'
 ```
 
 Sample response
 
-```bash
+```
 {
     "predictions": [
         {
+            
             "top_k_row_string": [
                 "man",
                 "woman",
-                "young",
-                "leaving",
-                "named",
-                "love",
-                "child",
-                "wrote",
+                "person",
+                "men",
+                "women",
                 "children",
-                "death",
+                "girl",
+                "son",
+                "father",
+                "god",
                 ...
             ],
             "top_k_row_similarity": [
                 1,
-                0.858384,
-                0.843938,
-                0.827622,
-                0.823886,
-                0.817748,
-                0.812745,
-                0.811423,
-                0.805291,
-                0.804582,
+                0.730189,
+                0.644536,
+                0.614566,
+                0.558976,
+                0.553486,
+                0.550555,
+                0.533169,
+                0.521285,
+                0.518982,
                 ...
             ],
             "row_embed": [
-                0.110241,
-                -0.0781973,
-                0.252237,
-                0.173164,
-                -0.0698477,
-                0.121707,
-                0.199838,
-                0.282855,
-                -0.336472,
-                0.11848,
+                -0.0735308,
+                0.14473,
+                0.587398,
+                0.354783,
+                0.148979,
+                0.302668,
+                -0.410081,
+                -0.158809,
+                0.0883906,
+                0.0459743,
                 ...
             ],
-            "row_bias": 0.00140062,
+            "row_bias": 0.189876,
             "top_k_column_string": [
                 "man",
                 "woman",
-                "wrote",
-                "named",
-                "child",
-                "young",
-                "children",
                 "person",
+                "child",
+                "men",
                 "love",
+                "girl",
+                "son",
+                "shot",
                 "god",
                 ...
             ],
             "top_k_column_similarity": [
                 1,
-                0.870042,
-                0.822171,
-                0.818766,
-                0.810546,
-                0.802626,
-                0.799576,
-                0.795452,
-                0.787946,
-                0.787853,
+                0.691862,
+                0.648038,
+                0.590263,
+                0.554949,
+                0.550537,
+                0.536444,
+                0.533546,
+                0.528475,
+                0.522893,
                 ...
             ],
             "column_embed": [
-                0.131286,
-                -0.220142,
-                0.164308,
-                0.172627,
-                -0.107009,
-                0.154377,
-                -0.149073,
-                0.365269,
-                -0.288956,
-                -0.035981,
+                0.24108,
+                0.184525,
+                0.557452,
+                0.501938,
+                -0.263059,
+                0.214702,
+                -0.60232,
+                0.299381,
+                -0.241118,
+                0.0867298,
                 ...
             ],
-            "column_bias": -0.0476088,
-            "embed_norm_product": 0.73634,
+            "column_bias": 0.218183,
+            "embed_norm_product": 0.362292
         }
     ]
 }

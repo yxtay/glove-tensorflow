@@ -14,6 +14,8 @@ conda env create -f=environment.yml
 source activate dl
 ```
 
+You may also use accompanying docker commands to avoid environment setup.
+
 ## Download & Process Data
 
 The [text8 dataset](http://mattmahoney.net/dc/textdata.html) is used for demonstration purposes.
@@ -21,6 +23,15 @@ The following script downloads the data, processes it to prepare the vocabulary 
 
 ```bash
 python -m src.data.text8
+```
+
+**With Docker**
+
+```bash
+docker run --rm -w=/home \
+  --mount type=bind,source=$(pwd),target=/home \
+  continuumio/anaconda3:5.3.0 \
+  python -m src.data.text8
 ```
 
 **Sample data**
@@ -68,6 +79,15 @@ optional arguments:
 python -m trainer.glove
 ```
 
+**With Docker**
+
+```bash
+docker run --rm -w=/home \
+  --mount type=bind,source=$(pwd),target=/home \
+  tensorflow/tensorflow:1.12.0-py3 \
+  python -m trainer.glove
+```
+
 **Usage**
 
 ```
@@ -101,6 +121,17 @@ You may inspect model training metrics with Tensorboard.
 ```bash
 tensorboard --logdir checkpoints/
 ```
+
+**With Docker**
+
+```bash
+docker run --rm -w=/home -p 6006:6006 \
+  --mount type=bind,source=$(pwd),target=/home \
+  tensorflow/tensorflow:1.12.0-py3 \
+  tensorboard --logdir checkpoints/
+```
+
+Access [Tensorboard](http://localhost:6006/) on your browser
 
 ## TensorFlow Serving
 

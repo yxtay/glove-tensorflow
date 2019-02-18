@@ -191,8 +191,6 @@ if __name__ == "__main__":
                         help="token coverage to set token count cutoff (default: %(default)s)")
     parser.add_argument("--context-size", default=5,
                         help="size of context window (default: %(default)s)")
-    parser.add_argument("--reset", action="store_true",
-                        help="whether to recompute interactions")
     parser.add_argument("--log-path", default="main.log",
                         help="path of log file (default: %(default)s)")
     args = parser.parse_args()

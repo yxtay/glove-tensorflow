@@ -142,7 +142,7 @@ CHECKPOINT_PATH=checkpoints/glove/export/exporter
 
 docker run --rm -p 8500:8500 -p 8501:8501 \
   --mount type=bind,source=$(pwd)/${CHECKPOINT_PATH},target=/models/glove \
-  -e MODEL_NAME=glove -t tensorflow/serving
+  -e MODEL_NAME=glove -t tensorflow/serving:1.12.0
 ```
 
 **Model signature**

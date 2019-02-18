@@ -32,26 +32,31 @@ def get_input_fn(path_pattern, col_names, col_defaults, label_col,
             label = features[label_col]
             return features, label
 
-        # read, parse, shuffle and batch dataset
-        file_paths = glob.glob(path_pattern, recursive=True)
-        dataset = tf.data.TextLineDataset(file_paths).skip(1)  # skip header
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            # shuffle and repeat
-            dataset = dataset.shuffle(16 * batch_size).repeat()
+        with tf.name_scope("input_fn"):
+            # read, parse, shuffle and batch dataset
+            file_paths = glob.glob(path_pattern, recursive=True)
+            dataset = tf.data.TextLineDataset(file_paths).skip(1)  # skip header
+            if mode == tf.estimator.ModeKeys.TRAIN:
+                # shuffle and repeat
+                dataset = dataset.shuffle(16 * batch_size).repeat()
 
-        dataset = dataset.map(parse_csv, num_parallel_calls=8)
-        dataset = dataset.batch(batch_size)
+            dataset = dataset.map(parse_csv, num_parallel_calls=8)
+            dataset = dataset.batch(batch_size)
         return dataset
 
     return input_fn
 
 
-def get_serving_input_fn(string_features=("row_token", "column_token")):
+def get_serving_input_fn(numeric_features=(), string_features=()):
     def serving_input_fn():
         features = {
+            key: tf.placeholder(tf.float32, [None], name=key)
+            for key in numeric_features
+        }
+        features.update({
             key: tf.placeholder(tf.string, [None], name=key)
             for key in string_features
-        }
+        })
         return tf.estimator.export.ServingInputReceiver(
             features=features,
             receiver_tensors=features

@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import tensorflow as tf
 
+from trainer.config import CONFIG, ROW_ID, COLUMN_ID
 from trainer.utils import (get_optimizer,
                            get_input_fn,
                            get_serving_input_fn,
@@ -11,31 +12,34 @@ from trainer.utils import (get_optimizer,
                            get_train_spec,
                            get_exporter,
                            get_eval_spec)
-from trainer.text8 import COL_DEFAULTS, COL_NAMES, LABEL_COL
 
 
 def get_field_variables(features, field_variables, embedding_size=64):
-    # create field variables
-    field_id_lookup = (tf.contrib.lookup
-                       .index_table_from_tensor(field_variables["mapping"], default_value=0,
-                                                name=field_variables["name"] + "_id_lookup"))
-    field_dim = len(field_variables["mapping"])
-    field_embeddings = tf.get_variable(field_variables["name"] + "_embeddings", [field_dim, embedding_size])
-    # [field_dim, embedding_size]
-    field_biases = tf.get_variable(field_variables["name"] + "_biases", [field_dim])
-    # [field_dim]
-    tf.summary.histogram(field_variables["name"] + "_bias", field_biases)
+    with tf.name_scope(field_variables["name"]):
+        # create field variables
+        field_id_lookup = (tf.contrib.lookup
+                           .index_table_from_tensor(field_variables["mapping"], default_value=0,
+                                                    name=field_variables["name"] + "_id_lookup"))
+        field_dim = len(field_variables["mapping"])
+        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=1.0 / (field_dim * embedding_size))
+        field_embeddings = tf.get_variable(field_variables["name"] + "_embeddings", [field_dim, embedding_size],
+                                           regularizer=l2_regularizer)
+        # [field_dim, embedding_size]
+        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=1.0 / field_dim)
+        field_biases = tf.get_variable(field_variables["name"] + "_biases", [field_dim],
+                                       regularizer=l2_regularizer)
+        # [field_dim]
+        tf.summary.histogram(field_variables["name"] + "_bias", field_biases)
 
-    # get field values
-    field_id = field_id_lookup.lookup(features[field_variables["name"]])
-    # [None]
-    field_embed = tf.nn.embedding_lookup(field_embeddings, field_id,
-                                         name=field_variables["name"] + "_embed_lookup")
-    # [None, embedding_size]
-    field_bias = tf.nn.embedding_lookup(field_biases, field_id,
-                                        name=field_variables["name"] + "_bias_lookup")
-    # [None, 1]
-
+        # get field values
+        field_id = field_id_lookup.lookup(features[field_variables["name"]])
+        # [None]
+        field_embed = tf.nn.embedding_lookup(field_embeddings, field_id,
+                                             name=field_variables["name"] + "_embed_lookup")
+        # [None, embedding_size]
+        field_bias = tf.nn.embedding_lookup(field_biases, field_id,
+                                            name=field_variables["name"] + "_bias_lookup")
+        # [None, 1]
     field_variables.update({
         "embeddings": field_embeddings,
         "biases": field_biases,
@@ -46,21 +50,22 @@ def get_field_variables(features, field_variables, embedding_size=64):
 
 
 def get_similarity(field_variables, k=100):
-    field_embed_norm = tf.math.l2_normalize(field_variables["embed"], 1)
-    # [None, embedding_size]
-    field_embeddings_norm = tf.math.l2_normalize(field_variables["embeddings"], 1)
-    # [vocab_size, embedding_size]
-    field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
-    # [None, mapping_size]
-    field_top_k_sim, field_top_k_idx = tf.math.top_k(field_cosine_sim, k=k,
-                                                     name="top_k_sim_" + field_variables["name"])
-    # [None, k], [None, k]
+    with tf.name_scope(field_variables["name"]):
+        field_embed_norm = tf.math.l2_normalize(field_variables["embed"], 1)
+        # [None, embedding_size]
+        field_embeddings_norm = tf.math.l2_normalize(field_variables["embeddings"], 1)
+        # [vocab_size, embedding_size]
+        field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
+        # [None, mapping_size]
+        field_top_k_sim, field_top_k_idx = tf.math.top_k(field_cosine_sim, k=k,
+                                                         name="top_k_sim_" + field_variables["name"])
+        # [None, k], [None, k]
 
-    field_string_lookup = (tf.contrib.lookup
-                           .index_to_string_table_from_tensor(field_variables["mapping"],
-                                                              name=field_variables["name"] + "_string_lookup"))
-    field_top_k_string = field_string_lookup.lookup(tf.cast(field_top_k_idx, tf.int64))
-    # [None, k]
+        field_string_lookup = (tf.contrib.lookup
+                               .index_to_string_table_from_tensor(field_variables["mapping"],
+                                                                  name=field_variables["name"] + "_string_lookup"))
+        field_top_k_string = field_string_lookup.lookup(tf.cast(field_top_k_idx, tf.int64))
+        # [None, k]
     field_variables.update({
         "embed_norm": field_embed_norm,
         "embeddings_norm": field_embeddings_norm,
@@ -72,25 +77,21 @@ def get_similarity(field_variables, k=100):
 
 
 def model_fn(features, labels, mode, params):
-    field_names = params.get("field_names",
-                             {
-                                 "row_id": "row_id",
-                                 "column_id": "column_id",
-                                 "weight": "weight",
-                                 "value": "value",
-                             })
+    field_names = params["field_names"]
     mappings = params["mappings"]
     embedding_size = params.get("embedding_size", 64)
     optimizer_name = params.get("optimizer", "Adam")
     learning_rate = params.get("learning_rate", 0.001)
     k = params.get("k", 100)
+    l2_reg = params.get("l2_reg", 0.01)
 
     row_id_variables = {"name": field_names["row_id"], "mapping": mappings[field_names["row_id"]]}
     column_id_variables = {"name": field_names["column_id"], "mapping": mappings[field_names["column_id"]]}
 
     with tf.name_scope("mf"):
         # global bias
-        global_bias = tf.get_variable("global_bias", [])
+        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=1.0)
+        global_bias = tf.get_variable("global_bias", [], regularizer=l2_regularizer)
         # []
         tf.summary.scalar("global_bias", global_bias)
         # row mapping, embeddings and biases
@@ -127,16 +128,20 @@ def model_fn(features, labels, mode, params):
             "embed_norm_product": embed_norm_product,
             "top_k_row_similarity": row_id_variables["top_k_sim"],
             "top_k_row_string": row_id_variables["top_k_string"],
+            "top_k_row_index": row_id_variables["top_k_idx"],
             "top_k_column_similarity": column_id_variables["top_k_sim"],
-            "top_k_column_string": column_id_variables["top_k_string"]
+            "top_k_column_string": column_id_variables["top_k_string"],
+            "top_k_column_index": column_id_variables["top_k_idx"],
         }
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     # evaluation
-    with tf.name_scope("mse"):
-        loss = tf.losses.mean_squared_error(features[field_names["value"]],
-                                            predicted_value,
-                                            features[field_names["weight"]])
+    with tf.name_scope("regularised_loss"):
+        mse_loss = tf.losses.mean_squared_error(
+            features[field_names["value"]], predicted_value, features[field_names["weight"]]
+        )
+        # []
+        loss = mse_loss + l2_reg * tf.losses.get_regularization_loss()
         # []
     if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss)
@@ -157,6 +162,7 @@ def train_and_evaluate(args):
     restore = args.restore
     # model
     embedding_size = args.embedding_size
+    l2_reg = args.l2_reg
     k = args.k
     # training
     batch_size = args.batch_size
@@ -178,29 +184,26 @@ def train_and_evaluate(args):
         model_dir=job_dir,
         config=run_config,
         params={
-            "field_names": {
-                "row_id": "row_token",
-                "column_id": "column_token",
-                "weight": "glove_weight",
-                "value": "glove_value",
-            },
+            "field_names": CONFIG["field_names"],
             "mappings": {
-                "row_token": vocab,
-                "column_token": vocab,
+                ROW_ID: vocab,
+                COLUMN_ID: vocab,
             },
             "embedding_size": embedding_size,
+            "l2_reg": l2_reg,
             "k": k,
         }
     )
 
     # train spec
-    text8_args = {"col_names": COL_NAMES, "col_defaults": COL_DEFAULTS, "label_col": LABEL_COL}
-    train_input_fn = get_input_fn(train_csv, batch_size=batch_size, **text8_args)
+    input_fn_args = CONFIG["input_fn_args"]
+    train_input_fn = get_input_fn(train_csv, batch_size=batch_size, **input_fn_args)
     train_spec = get_train_spec(train_input_fn, train_steps)
 
     # eval spec
-    eval_input_fn = get_input_fn(train_csv, mode=tf.estimator.ModeKeys.EVAL, batch_size=batch_size, **text8_args)
-    exporter = get_exporter(get_serving_input_fn())
+    eval_input_fn = get_input_fn(train_csv, mode=tf.estimator.ModeKeys.EVAL, batch_size=batch_size, **input_fn_args)
+    serving_input_fn_args = CONFIG["serving_input_fn_args"]
+    exporter = get_exporter(get_serving_input_fn(**serving_input_fn_args))
     eval_spec = get_eval_spec(eval_input_fn, exporter)
 
     # train and evaluate
@@ -219,6 +222,8 @@ if __name__ == '__main__':
                         help="whether to restore from JOB_DIR")
     parser.add_argument("--embedding-size", type=int, default=64,
                         help="embedding size (default: %(default)s)")
+    parser.add_argument("--l2-reg", type=float, default=0.01,
+                        help="scale of l2 regularisation (default: %(default)s)")
     parser.add_argument("--k", type=int, default=100,
                         help="k for top k similarity (default: %(default)s)")
     parser.add_argument("--batch-size", type=int, default=1024,

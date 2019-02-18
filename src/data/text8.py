@@ -1,5 +1,6 @@
+import base64
+import hashlib
 import json
-import math
 import shutil
 import sys
 from argparse import ArgumentParser
@@ -54,7 +55,7 @@ def process_data(text8, vocab_size=None, coverage=0.9, context_size=5):
     logger.info("vocab created, size: %s.", len(id2token))
 
     # compute interaction
-    interaction = create_interaction_matrix(text8_tokens, token2id, context_size)
+    interaction = create_interaction_dataframe(text8_tokens, token2id, context_size)
     df = create_glove_dataframe(interaction, id2token)
 
     return {"vocabulary": id2token, "interaction": df}
@@ -70,6 +71,34 @@ def create_vocabulary(text_tokens, vocab_size=None, coverage=0.9):
     logger.info("count cufoff: %s; token coverage: %s.", count_cutoff, coverage)
     id2token = ["<UNK>"] + [token for token, count in tokens_counter.most_common(vocab_size) if count >= count_cutoff]
     return id2token
+
+
+def create_interaction_dataframe(text_tokens, token2id, context_size=5):
+    token_ids = [token2id.get(token, 0) for token in text_tokens]
+    df = pd.DataFrame(list(enumerate(token_ids)), columns=["position", "token_id"])
+    # cross join by position for right context only
+    df_concat = pd.concat([df.set_index(df["position"] + i + 1) for i in range(context_size)])
+    df_co = df_concat.join(df, how="inner", lsuffix="_row", rsuffix="_column")
+    df_co = df_co.loc[(df_co["token_id_row"] != df_co["token_id_column"]) &
+                      (df_co["position_row"] < df_co["position_column"]), :]
+    df_co = df_co.assign(**{"value": 1 / (df_co["position_column"] - df_co["position_row"])})
+    # aggregate interactions
+    df_agg = (df_co
+              .groupby(["token_id_row", "token_id_column"])["value"]
+              .agg(["count", "sum"])
+              .reset_index()
+              .rename(columns={"token_id_row": "row_token_id", "token_id_column": "column_token_id", "sum": "value"}))
+    df_agg = df_agg.loc[(df_agg["count"] != 0) & (df_agg["value"] != 0), :]
+    # union swap row and col since symmetric
+    df_agg = (pd.concat([df_agg,
+                         df_agg.rename(columns={"row_token_id": "column_token_id", "column_token_id": "row_token_id"})],
+                        sort=False)
+              .groupby(["row_token_id", "column_token_id"])
+              .sum()
+              .reset_index())
+    logger.info("interaction dataframe created.")
+    logger.info("dataframe shape: %s.", df_agg.shape)
+    return df_agg
 
 
 def create_interaction_matrix(text_tokens, token2id, context_size=5):
@@ -100,25 +129,32 @@ def create_interaction_matrix(text_tokens, token2id, context_size=5):
     return interaction
 
 
-def create_glove_dataframe(interaction, id2token, value_minimum=0):
-    df = pd.DataFrame({"row_token_id": interaction.row,
-                       "column_token_id": interaction.col,
-                       "interaction": interaction.data})
-    df = df[df["interaction"] != 0]
-    logger.info("interaction dataframe created.")
-    logger.info("dataframe shape: %s.", df.shape)
-    df["row_token"] = np.array(id2token)[df["row_token_id"]]
-    df["column_token"] = np.array(id2token)[df["column_token_id"]]
-    df["glove_weight"] = glove_weight(df["interaction"])
-    df["glove_value"] = np.log(df["interaction"])
-    df = df[df["glove_value"] > value_minimum]
+def create_glove_dataframe(df, id2token, count_minimum=10):
+    # apply glove transformation
+    df = df.loc[df["count"] >= count_minimum, :]
+    df = (df
+          .assign(**{
+        "row_token": np.array(id2token)[df["row_token_id"]],
+        "column_token": np.array(id2token)[df["column_token_id"]],
+        "glove_weight": glove_weight(df["count"]),
+        "glove_value": np.log(df["value"])
+    }))
+    # randomise dataframe
     df = df.sample(frac=1, random_state=42)
+    # df = (df.sort_values(df["row_token"]
+    #                      .str.cat(df["column_token"], sep=" ")
+    #                      .str.encode("utf8")
+    #                      .apply(hash_sha1)))
     logger.info("dataframe shape: %s.", df.shape)
     return df
 
 
-def glove_weight(values, alpha=0.75, x_max=math.e ** 5):
+def glove_weight(values, alpha=0.75, x_max=100):
     return np.clip(np.power(values / x_max, alpha), 0, 1)
+
+
+def hash_sha1(x):
+    return base64.b64encode(hashlib.sha1(x).digest())
 
 
 def save_data(data, save_dir="data"):
@@ -167,11 +203,9 @@ if __name__ == "__main__":
 
     try:
         download_data(args.url, args.dest)
-        # computing interactions is very slow
-        if args.reset or not Path(args.dest, "interactions.csv").exists():
-            text8 = load_data(args.dest)
-            data = process_data(text8, args.vocab_size, args.coverage, args.context_size)
-            save_data(data, args.dest)
+        text8 = load_data(args.dest)
+        data = process_data(text8, args.vocab_size, args.coverage, args.context_size)
+        save_data(data, args.dest)
     except Exception as e:
         logger.exception(e)
         raise e

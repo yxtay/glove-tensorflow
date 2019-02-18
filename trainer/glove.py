@@ -4,9 +4,14 @@ from argparse import ArgumentParser
 
 import tensorflow as tf
 
-from trainer.conf_utils import get_run_config, get_train_spec, get_exporter, get_eval_spec
-from trainer.model_utils import get_optimizer
-from trainer.text8 import get_input_fn, get_serving_input_fn
+from trainer.utils import (get_optimizer,
+                           get_input_fn,
+                           get_serving_input_fn,
+                           get_run_config,
+                           get_train_spec,
+                           get_exporter,
+                           get_eval_spec)
+from trainer.text8 import COL_DEFAULTS, COL_NAMES, LABEL_COL
 
 
 def get_field_variables(features, field_variables, embedding_size=64):
@@ -189,11 +194,12 @@ def train_and_evaluate(args):
     )
 
     # train spec
-    train_input_fn = get_input_fn(train_csv, batch_size=batch_size)
+    text8_args = {"col_names": COL_NAMES, "col_defaults": COL_DEFAULTS, "label_col": LABEL_COL}
+    train_input_fn = get_input_fn(train_csv, batch_size=batch_size, **text8_args)
     train_spec = get_train_spec(train_input_fn, train_steps)
 
     # eval spec
-    eval_input_fn = get_input_fn(train_csv, tf.estimator.ModeKeys.EVAL, batch_size=batch_size)
+    eval_input_fn = get_input_fn(train_csv, mode=tf.estimator.ModeKeys.EVAL, batch_size=batch_size, **text8_args)
     exporter = get_exporter(get_serving_input_fn())
     eval_spec = get_eval_spec(eval_input_fn, exporter)
 

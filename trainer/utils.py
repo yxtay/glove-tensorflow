@@ -103,12 +103,14 @@ def get_input_fn(path_pattern, col_names, col_defaults, label_col,
             # read, parse, shuffle and batch dataset
             file_paths = tf.gfile.Glob(path_pattern)
             dataset = tf.data.experimental.CsvDataset(file_paths, col_defaults, header=True)
+            # repeat for train
             if mode == tf.estimator.ModeKeys.TRAIN:
-                # shuffle and repeat
-                dataset = dataset.shuffle(16 * batch_size).repeat()
+                dataset = dataset.repeat()
 
-            dataset = dataset.map(name_columns, num_parallel_calls=8)
-            dataset = dataset.batch(batch_size)
+            dataset = (dataset
+                       .map(name_columns, num_parallel_calls=8)
+                       .shuffle(16 * batch_size)
+                       .batch(batch_size))
         return dataset
 
     return input_fn

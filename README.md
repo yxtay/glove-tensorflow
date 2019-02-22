@@ -1,5 +1,8 @@
 # GloVe Model in TensorFlow
+
 Implementation of GloVe using TensorFlow estimator API.
+
+The trainer module in this repository also allows for distributed model training and evaluation on Google Cloud Platform. Please refer to [distributed](distributed.md).
 
 ## Setup
 
@@ -36,17 +39,17 @@ docker run --rm -w=/home \
 
 **Sample data**
 
-| row_token_id | column_token_id | interaction | row_token  | column_token | glove_weight | glove_value |
-|--------------|-----------------|-------------|------------|--------------|--------------|-------------|
-| 608          | 247             | 1.5833      | town       | free         | 0.0331       | 0.4595      |
-| 1070         | 53              | 3.4166      | magazine   | can          | 0.0591       | 1.2286      |
-| 7050         | 5239            | 2.0         | syllables  | numbered     | 0.0395       | 0.6931      |
-| 5315         | 1391            | 1.4166      | malta      | geography    | 0.0305       | 0.3483      |
-| 364          | 0               | 1481.7500   | never      | \<UNK\>        | 1.0          | 7.3009      |
-| 269          | 144             | 15.6499     | line       | form         | 0.1850       | 2.7504      |
-| 631          | 2895            | 1.5333      | characters | gary         | 0.0324       | 0.4274      |
-| 1437         | 74              | 7.1166      | attacks    | would        | 0.1024       | 1.9624      |
-| 6788         | 4522            | 2.0         | sexually   | adults       | 0.0395       | 0.6931      |
+| row_token_id | column_token_id | count | value   | row_token    | column_token | glove_weight | glove_value | 
+|--------------|-----------------|-------|---------|--------------|--------------|--------------|-------------| 
+| 614          | 848             | 16    | 12.6499 | irish        | origin       | 0.2529       | 2.5376      | 
+| 113          | 1133            | 27    | 11.1333 | number       | places       | 0.3745       | 2.4099      | 
+| 4501         | 2158            | 12    |  3.6833 | discrete     | continuous   | 0.2038       | 1.3038      | 
+| 6007         | 1               | 110   | 51.5166 | videos       | the          | 1.0000       | 3.9419      | 
+| 153          | 65              | 57    | 19.0500 | general      | time         | 0.6560       | 2.9470      | 
+| 2978         | 642             | 12    |  6.1166 | consumer     | food         | 0.2038       | 1.8110      | 
+| 2156         | 59              | 41    | 19.4000 | historically | used         | 0.5123       | 2.9652      | 
+| 3166         | 45              | 23    | 16.3666 | collapse     | its          | 0.3321       | 2.7952      | 
+| 445          | 100             | 32    | 14.2333 | center       | where        | 0.4254       | 2.6555      | 
 
 **Usage**
 
@@ -302,6 +305,10 @@ Sample response
     ]
 }
 ```
+
+## Distributed
+
+For distributed model training and evaluation, please refer to [distributed](distributed.md).
 
 ## References
 

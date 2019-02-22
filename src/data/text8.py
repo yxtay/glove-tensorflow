@@ -140,21 +140,17 @@ def create_glove_dataframe(df, id2token, count_minimum=10):
         "glove_value": np.log(df["value"])
     }))
     # randomise dataframe
-    df = df.sample(frac=1, random_state=42)
-    # df = (df.sort_values(df["row_token"]
-    #                      .str.cat(df["column_token"], sep=" ")
-    #                      .str.encode("utf8")
-    #                      .apply(hash_sha1)))
+    df = (df.set_index(df["row_token"]
+                       .str.cat(df["column_token"], sep=" ")
+                       .str.encode("utf8")
+                       .apply(hash))
+          .sort_index())
     logger.info("dataframe shape: %s.", df.shape)
     return df
 
 
 def glove_weight(values, alpha=0.75, x_max=100):
     return np.clip(np.power(values / x_max, alpha), 0, 1)
-
-
-def hash_sha1(x):
-    return base64.b64encode(hashlib.sha1(x).digest())
 
 
 def save_data(data, save_dir="data"):

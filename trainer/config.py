@@ -6,7 +6,7 @@ VALUE = "glove_value"
 # input_fn_args
 COLUMN_NAMES = ["row_token_id", "column_token_id", "count", "value",
                 "row_token", "column_token", "glove_weight", "glove_value"]
-COLUMN_DEFAULTS = [[0], [0], [0.0], [0.0], ["null"], ["null"], [0.0], [0.0]]
+COLUMN_DEFAULTS = [[0], [0], [0.0], [0.0], [""], [""], [0.0], [0.0]]
 LABEL_COL = "glove_value"
 # serving_input_fn_args
 SERVING_STRING_FEATURES = ["row_token", "column_token"]
@@ -24,7 +24,6 @@ CONFIG = {
         "label_col": LABEL_COL,
     },
     "serving_input_fn_args": {
-        "numeric_features": [],
         "string_features": SERVING_STRING_FEATURES,
     }
 }

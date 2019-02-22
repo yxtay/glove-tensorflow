@@ -1,11 +1,11 @@
 import json
-import shutil
 from argparse import ArgumentParser
 
 import tensorflow as tf
 
 from trainer.config import CONFIG, ROW_ID, COLUMN_ID
 from trainer.utils import (get_optimizer,
+                           get_train_op,
                            get_input_fn,
                            get_serving_input_fn,
                            get_run_config,
@@ -147,9 +147,8 @@ def model_fn(features, labels, mode, params):
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss)
 
     # training
-    with tf.name_scope("train"):
-        optimizer = get_optimizer(optimizer_name, learning_rate)
-        train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+    optimizer = get_optimizer(optimizer_name, learning_rate)
+    train_op = get_train_op(loss, optimizer)
     if mode == tf.estimator.ModeKeys.TRAIN:
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
@@ -170,11 +169,11 @@ def train_and_evaluate(args):
 
     # init
     tf.logging.set_verbosity(tf.logging.INFO)
-    if not restore:
-        shutil.rmtree(job_dir, ignore_errors=True)
+    if not restore and tf.gfile.Exists(job_dir):
+        tf.gfile.DeleteRecursively(job_dir)
 
     # load vocab
-    with open(vocab_json) as f:
+    with tf.gfile.GFile(vocab_json) as f:
         vocab = json.load(f)
 
     # estimator

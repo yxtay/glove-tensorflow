@@ -87,7 +87,7 @@ python -m trainer.glove
 ```bash
 docker run --rm -w=/home \
   --mount type=bind,source=$(pwd),target=/home \
-  tensorflow/tensorflow:1.12.0-py3 \
+  tensorflow/tensorflow:1.13.1-py3 \
   python -m trainer.glove
 ```
 
@@ -114,7 +114,7 @@ optional arguments:
   --batch-size BATCH_SIZE
                         batch size (default: 1024)
   --train-steps TRAIN_STEPS
-                        number of training steps (default: 20000)
+                        number of training steps (default: 16384)
 ```
 
 ## Tensorboard
@@ -130,7 +130,7 @@ tensorboard --logdir checkpoints/
 ```bash
 docker run --rm -w=/home -p 6006:6006 \
   --mount type=bind,source=$(pwd),target=/home \
-  tensorflow/tensorflow:1.12.0-py3 \
+  tensorflow/tensorflow:1.13.1-py3 \
   tensorboard --logdir checkpoints/
 ```
 
@@ -145,61 +145,79 @@ CHECKPOINT_PATH=checkpoints/glove/export/exporter
 
 docker run --rm -p 8500:8500 -p 8501:8501 \
   --mount type=bind,source=$(pwd)/${CHECKPOINT_PATH},target=/models/glove \
-  -e MODEL_NAME=glove -t tensorflow/serving:1.12.0
+  -e MODEL_NAME=glove -t tensorflow/serving:1.13.1
 ```
 
 **Model signature**
+
+```bash
+CHECKPOINT_PATH=checkpoints/glove/export/exporter/1556612325/
+
+saved_model_cli show --all --dir ${CHECKPOINT_PATH}
+```
 
 ```
 MetaGraphDef with tag-set: 'serve' contains the following SignatureDefs:
 
 signature_def['serving_default']:
   The given SavedModel SignatureDef contains the following input(s):
-    inputs['column_token'] tensor_info:
+    inputs['col_token'] tensor_info:
         dtype: DT_STRING
         shape: (-1)
-        name: column_token:0
+        name: col_token:0
     inputs['row_token'] tensor_info:
         dtype: DT_STRING
         shape: (-1)
         name: row_token:0
   The given SavedModel SignatureDef contains the following output(s):
-    outputs['column_bias'] tensor_info:
+    outputs['col_bias'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1)
-        name: mf/column_token_bias_lookup/Identity:0
-    outputs['column_embed'] tensor_info:
+        name: mf/col_token/col_token_bias_lookup/Identity:0
+    outputs['col_embed'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 64)
-        name: mf/column_token_embed_lookup/Identity:0
+        name: mf/col_token/col_token_embed_lookup/Identity:0
+    outputs['col_id'] tensor_info:
+        dtype: DT_STRING
+        shape: (-1)
+        name: mf/col_token/Identity:0
     outputs['embed_norm_product'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1)
         name: similarity/Sum:0
+    outputs['predicted_value'] tensor_info:
+        dtype: DT_FLOAT
+        shape: (-1)
+        name: mf/AddN:0
     outputs['row_bias'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1)
-        name: mf/row_token_bias_lookup/Identity:0
+        name: mf/row_token/row_token_bias_lookup/Identity:0
     outputs['row_embed'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 64)
-        name: mf/row_token_embed_lookup/Identity:0
-    outputs['top_k_column_similarity'] tensor_info:
+        name: mf/row_token/row_token_embed_lookup/Identity:0
+    outputs['row_id'] tensor_info:
+        dtype: DT_STRING
+        shape: (-1)
+        name: mf/row_token/Identity:0
+    outputs['top_k_col_similarity'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 100)
-        name: similarity/top_k_sim_column_token:0
-    outputs['top_k_column_string'] tensor_info:
+        name: similarity/col_token/top_k_sim_col_token:0
+    outputs['top_k_col_string'] tensor_info:
         dtype: DT_STRING
         shape: (-1, 100)
-        name: similarity/column_token_string_lookup_Lookup:0
+        name: similarity/col_token/col_token_string_lookup_Lookup:0
     outputs['top_k_row_similarity'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 100)
-        name: similarity/top_k_sim_row_token:0
+        name: similarity/row_token/top_k_sim_row_token:0
     outputs['top_k_row_string'] tensor_info:
         dtype: DT_STRING
         shape: (-1, 100)
-        name: similarity/row_token_string_lookup_Lookup:0
+        name: similarity/row_token/row_token_string_lookup_Lookup:0
   Method name is: tensorflow/serving/predict
 ```
 
@@ -210,7 +228,7 @@ Sample request
 ```bash
 curl -X POST \
   http://localhost:8501/v1/models/glove:predict \
-  -d '{"instances": [{"row_token": "man", "column_token": "man"}]}'
+  -d '{"instances": [{"row_token": "man", "col_token": "man"}]}'
 ```
 
 Sample response
@@ -260,7 +278,7 @@ Sample response
                 ...
             ],
             "row_bias": 0.189876,
-            "top_k_column_string": [
+            "top_k_col_string": [
                 "man",
                 "woman",
                 "person",
@@ -273,7 +291,7 @@ Sample response
                 "god",
                 ...
             ],
-            "top_k_column_similarity": [
+            "top_k_col_similarity": [
                 1,
                 0.691862,
                 0.648038,
@@ -286,7 +304,7 @@ Sample response
                 0.522893,
                 ...
             ],
-            "column_embed": [
+            "col_embed": [
                 0.24108,
                 0.184525,
                 0.557452,
@@ -299,7 +317,7 @@ Sample response
                 0.0867298,
                 ...
             ],
-            "column_bias": 0.218183,
+            "col_bias": 0.218183,
             "embed_norm_product": 0.362292
         }
     ]

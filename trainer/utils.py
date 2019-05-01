@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 EVAL_INTERVAL = 300
+EVAL_STEPS = None  # None, until OutOfRangeError from input_fn
 
 
 def get_column_info(df, dtypes={}):
@@ -73,6 +74,22 @@ def get_feature_columns(numeric_features=[], numeric_bucketised={},
     }
 
 
+def get_predict_fn(fn_name):
+    predict_fns = {
+        "identity": tf.identity,
+        "sigmoid": tf.sigmoid
+    }
+    return predict_fns[fn_name]
+
+
+def get_loss_fn(loss_name):
+    loss_fns = {
+        "mean_squared_error": tf.losses.mean_squared_error,
+        "log_loss": tf.losses.log_loss
+    }
+    return loss_fns[loss_name]
+
+
 def get_optimizer(optimizer_name="Adam", learning_rate=0.001):
     optimizer_classes = {
         "Adagrad": tf.train.AdagradOptimizer,
@@ -91,18 +108,20 @@ def get_train_op(loss, optimizer):
     return train_op
 
 
-def get_input_fn(path_pattern, col_names, col_defaults, label_col,
-                 mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
+def get_csv_input_fn(path_pattern, col_names, col_defaults, feature_names, label_names=(),
+                     mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
     def input_fn():
         def name_columns(*columns):
-            features = dict(zip(col_names, columns))
-            label = features[label_col]
-            return features, label
+            named_cols = dict(zip(col_names, columns))
+            features = {col: named_cols[col] for col in feature_names}
+            labels = {col: named_cols[col] for col in label_names}
+            return features, labels
 
         with tf.name_scope("input_fn"):
             # read, parse, shuffle and batch dataset
-            file_paths = tf.gfile.Glob(path_pattern)
+            file_paths = tf.io.gfile.glob(path_pattern)
             dataset = tf.data.experimental.CsvDataset(file_paths, col_defaults, header=True)
+
             # repeat for train
             if mode == tf.estimator.ModeKeys.TRAIN:
                 dataset = dataset.repeat()
@@ -139,10 +158,10 @@ def get_serving_input_fn(int_features=(), float_features=(), string_features=())
     return serving_input_fn
 
 
-def get_run_config():
+def get_run_config(save_checkpoints_secs=EVAL_INTERVAL, keep_checkpoint_max=5):
     return tf.estimator.RunConfig(
-        save_checkpoints_secs=EVAL_INTERVAL,
-        keep_checkpoint_max=5
+        save_checkpoints_secs=min(save_checkpoints_secs, 300),
+        keep_checkpoint_max=keep_checkpoint_max
     )
 
 
@@ -153,18 +172,19 @@ def get_train_spec(input_fn, train_steps):
     )
 
 
-def get_exporter(serving_input_fn):
+def get_exporter(serving_input_fn, exports_to_keep=5):
     return tf.estimator.LatestExporter(
         name="exporter",
-        serving_input_receiver_fn=serving_input_fn
+        serving_input_receiver_fn=serving_input_fn,
+        exports_to_keep=exports_to_keep
     )
 
 
-def get_eval_spec(input_fn, exporter):
+def get_eval_spec(input_fn, exporter, steps=EVAL_STEPS, throttle_secs=EVAL_INTERVAL):
     return tf.estimator.EvalSpec(
         input_fn=input_fn,
-        steps=None,  # until OutOfRangeError from input_fn
+        steps=steps,
         exporters=exporter,
-        start_delay_secs=min(EVAL_INTERVAL, 120),
-        throttle_secs=EVAL_INTERVAL
+        start_delay_secs=min(throttle_secs, 120),
+        throttle_secs=throttle_secs
     )

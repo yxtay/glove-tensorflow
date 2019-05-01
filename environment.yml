@@ -4,4 +4,4 @@ channels:
 dependencies:
 - anaconda=5.3
 - python=3.6
-- tensorflow=1.12
+- tensorflow=1.13

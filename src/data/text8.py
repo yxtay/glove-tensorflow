@@ -1,5 +1,3 @@
-import base64
-import hashlib
 import json
 import shutil
 import sys
@@ -11,7 +9,6 @@ from zipfile import ZipFile
 import numpy as np
 import pandas as pd
 import requests
-from scipy import sparse
 
 from src.logger import get_logger
 
@@ -74,59 +71,31 @@ def create_vocabulary(text_tokens, vocab_size=None, coverage=0.9):
 
 
 def create_interaction_dataframe(text_tokens, token2id, context_size=5):
-    token_ids = [token2id.get(token, 0) for token in text_tokens]
+    token_ids = (token2id.get(token, 0) for token in text_tokens)
     df = pd.DataFrame(list(enumerate(token_ids)), columns=["position", "token_id"])
     # cross join by position for right context only
     df_concat = pd.concat([df.set_index(df["position"] + i + 1) for i in range(context_size)])
-    df_co = df_concat.join(df, how="inner", lsuffix="_row", rsuffix="_column")
-    df_co = df_co.loc[(df_co["token_id_row"] != df_co["token_id_column"]) &
-                      (df_co["position_row"] < df_co["position_column"]), :]
-    df_co = df_co.assign(**{"value": 1 / (df_co["position_column"] - df_co["position_row"])})
+    df_co = df_concat.join(df, how="inner", lsuffix="_row", rsuffix="_col")
+    df_co = df_co.loc[(df_co["token_id_row"] != df_co["token_id_col"]) &
+                      (df_co["position_row"] < df_co["position_col"]), :]
+    df_co = df_co.assign(**{"value": 1 / (df_co["position_col"] - df_co["position_row"])})
     # aggregate interactions
     df_agg = (df_co
-              .groupby(["token_id_row", "token_id_column"])["value"]
+              .groupby(["token_id_row", "token_id_col"])["value"]
               .agg(["count", "sum"])
               .reset_index()
-              .rename(columns={"token_id_row": "row_token_id", "token_id_column": "column_token_id", "sum": "value"}))
+              .rename(columns={"token_id_row": "row_token_id", "token_id_col": "col_token_id", "sum": "value"}))
     df_agg = df_agg.loc[(df_agg["count"] != 0) & (df_agg["value"] != 0), :]
     # union swap row and col since symmetric
     df_agg = (pd.concat([df_agg,
-                         df_agg.rename(columns={"row_token_id": "column_token_id", "column_token_id": "row_token_id"})],
+                         df_agg.rename(columns={"row_token_id": "col_token_id", "col_token_id": "row_token_id"})],
                         sort=False)
-              .groupby(["row_token_id", "column_token_id"])
+              .groupby(["row_token_id", "col_token_id"])
               .sum()
               .reset_index())
     logger.info("interaction dataframe created.")
     logger.info("dataframe shape: %s.", df_agg.shape)
     return df_agg
-
-
-def create_interaction_matrix(text_tokens, token2id, context_size=5):
-    tokens_total = len(text_tokens)
-    token_ids = [token2id.get(token, 0) for token in text_tokens]
-    vocab_size = len(token2id)
-    interaction = sparse.dok_matrix((vocab_size, vocab_size), dtype=float)
-    for i, center_id in enumerate(token_ids):
-        context_ids = np.array(token_ids[max(0, i - context_size):i])
-        context_len = len(context_ids)
-
-        # count for left context and add transpose later since symmetric
-        for left_i, left_id in enumerate(context_ids):
-            if center_id != left_id:
-                weight = 1.0 / (context_len - left_i)
-                interaction[center_id, left_id] += weight
-
-        if i % 10000 == 0:
-            logger.info("%s / %s tokens processed.", i, tokens_total)
-            logger.info("interaction matrix size: %s.", interaction.nnz)
-
-    interaction = interaction.tocsr()
-    interaction += interaction.transpose()
-    interaction = interaction.tocoo()
-    interaction.setdiag(0)
-    interaction.eliminate_zeros()
-    logger.info("interaction matrix computed, size: %s.", interaction.nnz)
-    return interaction
 
 
 def create_glove_dataframe(df, id2token, count_minimum=10):
@@ -135,13 +104,13 @@ def create_glove_dataframe(df, id2token, count_minimum=10):
     df = (df
           .assign(**{
         "row_token": np.array(id2token)[df["row_token_id"]],
-        "column_token": np.array(id2token)[df["column_token_id"]],
+        "col_token": np.array(id2token)[df["col_token_id"]],
         "glove_weight": glove_weight(df["count"]),
         "glove_value": np.log(df["value"])
     }))
     # randomise dataframe
     df = (df.set_index(df["row_token"]
-                       .str.cat(df["column_token"], sep=" ")
+                       .str.cat(df["col_token"], sep=" ")
                        .str.encode("utf8")
                        .apply(hash))
           .sort_index())
@@ -157,13 +126,7 @@ def save_data(data, save_dir="data"):
     # save vocab
     vocab = data["vocabulary"]
     file_path = Path(save_dir, "vocab.json")
-    with open(file_path, "w") as f:
-        json.dump(vocab, f)
-    logger.info("vocabulary saved: %s.", file_path)
-
-    file_path = Path(save_dir, "vocab.txt")
-    with open(file_path, "w") as f:
-        f.write("\n".join(vocab))
+    file_path.write_text(json.dumps(vocab, indent=2))
     logger.info("vocabulary saved: %s.", file_path)
 
     # save interaction
@@ -177,18 +140,38 @@ def save_data(data, save_dir="data"):
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Download, extract and prepare text8 data.")
-    parser.add_argument("--url", default="http://mattmahoney.net/dc/text8.zip",
-                        help="url of text8 data (default: %(default)s)")
-    parser.add_argument("--dest", default="data",
-                        help="destination directory for downloaded and extracted files (default: %(default)s)")
-    parser.add_argument("--vocab-size", default=None,
-                        help="maximum size of vocab (default: %(default)s)")
-    parser.add_argument("--coverage", default=0.9,
-                        help="token coverage to set token count cutoff (default: %(default)s)")
-    parser.add_argument("--context-size", default=5,
-                        help="size of context window (default: %(default)s)")
-    parser.add_argument("--log-path", default="main.log",
-                        help="path of log file (default: %(default)s)")
+    parser.add_argument(
+        "--url",
+        default="http://mattmahoney.net/dc/text8.zip",
+        help="url of text8 data (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--dest",
+        default="data",
+        help="destination directory for downloaded and extracted files (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--vocab-size",
+        default=None,
+        help="maximum size of vocab (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--coverage",
+        type=float,
+        default=0.9,
+        help="token coverage to set token count cutoff (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=5,
+        help="size of context window (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--log-path",
+        default="main.log",
+        help="path of log file (default: %(default)s)"
+    )
     args = parser.parse_args()
 
     logger = get_logger(__name__, log_path=args.log_path, console=True)

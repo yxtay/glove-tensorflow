@@ -65,11 +65,11 @@ TODO: Add instructions to set up `gcloud`.
 
 ```bash
 # change accordingly
-BUCKET="default-223103"
-DIR_PATH="glove-tensorflow"
+BUCKET=default-223103
+DIR_PATH=glove-tensorflow
 
-SRC=$(pwd)/data/*
-DST=gs://${BUCKET}/${DIR_PATH}/data/
+SRC=$(pwd)/data
+DST=gs://${BUCKET}/${DIR_PATH}
 gsutil -m cp -r "${SRC}" ${DST}
 ```
 
@@ -77,29 +77,33 @@ gsutil -m cp -r "${SRC}" ${DST}
 
 ```bash
 # change accordingly
-REGION="us-central1"
-RUNTIME_VERSION="1.12"
+RUNTIME_VERSION=1.13
+PYTHON_VERSION=3.5
+REGION=us-central1
+SCALE_TIER=basic
 
-BUCKET="default-223103"
-DIR_PATH="glove-tensorflow"
-PACKAGE_NAME="trainer"
-MODEL_NAME="glove"
+BUCKET=default-223103
+DIR_PATH=glove-tensorflow
+PACKAGE_NAME=trainer
+MODEL_NAME=glove
 
-JOB_NAME="${MODEL_NAME}_$(date -u +%y%m%d_%H%M%S)"
-OUTPUT_PATH="gs://${BUCKET}/${DIR_PATH}/checkpoints/${JOB_NAME}"
-TRAIN_CSV="gs://${BUCKET}/${DIR_PATH}/data/interaction.csv"
-VOCAB_JSON="gs://${BUCKET}/${DIR_PATH}/data/vocab.json"
+JOB_NAME=${MODEL_NAME}_$(date -u +%y%m%d_%H%M%S)
+OUTPUT_PATH=gs://${BUCKET}/${DIR_PATH}/checkpoints/${JOB_NAME}
+TRAIN_CSV=gs://${BUCKET}/${DIR_PATH}/data/interaction.csv
+VOCAB_JSON=gs://${BUCKET}/${DIR_PATH}/data/vocab.json
 
 gcloud ml-engine jobs submit training $JOB_NAME \
+    --package-path ${PACKAGE_NAME} \
+    --module-name ${PACKAGE_NAME}.${MODEL_NAME} \
     --job-dir ${OUTPUT_PATH} \
     --runtime-version ${RUNTIME_VERSION} \
-    --module-name ${PACKAGE_NAME}.${MODEL_NAME} \
-    --package-path ${PACKAGE_NAME} \
-    --region $REGION \
+    --python-version ${PYTHON_VERSION} \
+    --region ${REGION} \
+    --scale-tier ${SCALE_TIER} \
     -- \
     --train-csv ${TRAIN_CSV} \
     --vocab-json ${VOCAB_JSON} \
-    --train-steps 100000
+    --train-steps 65536
 ```
 
 ## Tensorboard
@@ -107,9 +111,9 @@ gcloud ml-engine jobs submit training $JOB_NAME \
 You may inspect model training metrics with Tensorboard
 
 ```bash
-BUCKET="default-223103"
-DIR_PATH="glove-tensorflow"
-OUTPUT_PATH="gs://${BUCKET}/${DIR_PATH}/checkpoints/"
+BUCKET=default-223103
+DIR_PATH=glove-tensorflow
+OUTPUT_PATH=gs://${BUCKET}/${DIR_PATH}/checkpoints
 
 tensorboard --logdir OUTPUT_PATH
 ```

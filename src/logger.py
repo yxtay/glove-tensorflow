@@ -27,21 +27,28 @@ def get_logger(name, log_path="main.log", console=True):
 
     # rotating file handler
     if log_path:
-        fh = RotatingFileHandler(
+        file_handler = RotatingFileHandler(
             log_path,
             maxBytes=10 * 2 ** 20,  # 10 MB
             backupCount=10,  # 1 backup
         )
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     # console handler
     if console:
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(logging.INFO)
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
+        # stdout
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.INFO)
+        stdout_handler.setFormatter(formatter)
+        logger.addHandler(stdout_handler)
+
+        # stderr
+        stderr_handler = logging.StreamHandler()
+        stderr_handler.setLevel(logging.ERROR)
+        stderr_handler.setFormatter(formatter)
+        logger.addHandler(stderr_handler)
 
     # null handler
     if not (log_path or console):

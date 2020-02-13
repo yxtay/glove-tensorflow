@@ -2,6 +2,17 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
+from pythonjsonlogger import jsonlogger
+
+# formatter
+log_format = "%(asctime)s - %(levelname)s - %(name)s - %(filename)s - %(lineno)d - %(funcName)s - %(message)s"
+formatter = jsonlogger.JsonFormatter(fmt=log_format, timestamp=True)
+
+# stdout
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_handler.setFormatter(formatter)
+
 
 def get_logger(name, log_path="main.log", console=True):
     """
@@ -18,11 +29,9 @@ def get_logger(name, log_path="main.log", console=True):
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-    format = "%(asctime)s - %(levelname)s - %(name)s - %(filename)s:%(lineno)d - %(funcName)s - %(message)s"
-    formatter = logging.Formatter(format)
 
     # ensure that logging handlers are not duplicated
-    for handler in list(logger.handlers):
+    for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
     # rotating file handler
@@ -30,7 +39,7 @@ def get_logger(name, log_path="main.log", console=True):
         file_handler = RotatingFileHandler(
             log_path,
             maxBytes=10 * 2 ** 20,  # 10 MB
-            backupCount=10,  # 1 backup
+            backupCount=1,  # 1 backup
         )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
@@ -38,20 +47,9 @@ def get_logger(name, log_path="main.log", console=True):
 
     # console handler
     if console:
-        # stdout
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.INFO)
-        stdout_handler.setFormatter(formatter)
         logger.addHandler(stdout_handler)
 
-        # stderr
-        stderr_handler = logging.StreamHandler()
-        stderr_handler.setLevel(logging.ERROR)
-        stderr_handler.setFormatter(formatter)
-        logger.addHandler(stderr_handler)
-
-    # null handler
-    if not (log_path or console):
+    if not logger.hasHandlers():
         logger.addHandler(logging.NullHandler())
 
     return logger

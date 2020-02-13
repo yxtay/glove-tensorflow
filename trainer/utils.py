@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 EVAL_INTERVAL = 300
@@ -14,13 +15,13 @@ def get_column_info(df, dtypes={}):
     for col in col_names:
         if col in dtypes:
             col_types.append(dtypes[col])
-        elif df[col].dtype in ("float", "float32", "float64"):
+        elif pd.api.types.is_float_dtype(df[col]):
             col_types.append("float")
-        elif df[col].dtype in ("int", "int32", "int64"):
+        elif pd.api.types.is_integer_dtype(df[col]):
             col_types.append("int")
-        elif df[col].dtype in ("bool", "bool8"):
+        elif pd.api.types.is_bool_dtype(df[col]):
             col_types.append("bool")
-        elif df[col].dtype in ("object", "str"):
+        elif pd.api.types.is_string_dtype(df[col]):
             col_types.append("str")
         else:
             col_types.append("str")
@@ -108,28 +109,59 @@ def get_train_op(loss, optimizer):
     return train_op
 
 
-def get_csv_input_fn(path_pattern, col_names, col_defaults, feature_names, label_names=(),
-                     mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
+def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_names=(),
+                    batch_size=32, num_epochs=None, compression_type=""):
+    def arrange_columns(features):
+        output = features
+
+        if len(target_names) > 0:
+            targets = {col: features.pop(col) for col in target_names}
+            output = features, targets
+
+            if len(weight_names) > 0:
+                weights = {target_col: features.pop(weight_col)
+                           for target_col, weight_col in zip(target_names, weight_names)}
+                output = features, targets, weights
+
+        return output
+
+    select_columns = feature_names + target_names + weight_names
+    with tf.name_scope("dataset"):
+        dataset = tf.data.experimental.make_csv_dataset(
+            file_pattern=file_pattern,
+            batch_size=batch_size,
+            select_columns=select_columns,
+            num_epochs=num_epochs,
+            num_parallel_reads=8,
+            sloppy=True,
+            num_rows_for_inference=100,
+            compression_type=compression_type,
+        )
+        dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
+    return dataset
+
+
+def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=(),
+                     batch_size=32, num_epochs=None, compression_type=""):
     def input_fn():
-        def name_columns(*columns):
-            named_cols = dict(zip(col_names, columns))
-            features = {col: named_cols[col] for col in feature_names}
-            labels = {col: named_cols[col] for col in label_names}
-            return features, labels
+        def arrange_columns(*values):
+            if len(values) == 3:
+                features, targets, weights = values
+                return {"features": features, "sample_weights": weights}, targets
+
+            return values
 
         with tf.name_scope("input_fn"):
-            # read, parse, shuffle and batch dataset
-            file_paths = tf.io.gfile.glob(path_pattern)
-            dataset = tf.data.experimental.CsvDataset(file_paths, col_defaults, header=True)
-
-            # repeat for train
-            if mode == tf.estimator.ModeKeys.TRAIN:
-                dataset = dataset.repeat()
-
-            dataset = (dataset
-                       .map(name_columns, num_parallel_calls=8)
-                       .shuffle(16 * batch_size)
-                       .batch(batch_size))
+            dataset = get_csv_dataset(
+                file_pattern=file_pattern,
+                feature_names=feature_names,
+                target_names=target_names,
+                weight_names=weight_names,
+                batch_size=batch_size,
+                num_epochs=num_epochs,
+                compression_type=compression_type,
+            )
+            dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
         return dataset
 
     return input_fn

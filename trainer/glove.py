@@ -4,94 +4,88 @@ from argparse import ArgumentParser
 
 import tensorflow as tf
 
-from trainer.config import COL_ID, CONFIG, ROW_ID
+from trainer.config import COL_ID, CONFIG, ROW_ID, VOCAB_TXT
 from trainer.utils import (
-    get_csv_input_fn, get_eval_spec, get_exporter, get_optimizer, get_run_config, get_serving_input_fn, get_train_op,
-    get_train_spec
+    get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_minimise_op, get_optimizer, get_run_config,
+    get_serving_input_fn, get_train_spec,
 )
 
 
-def get_field_variables(features, field_variables, embedding_size=64):
-    with tf.name_scope(field_variables["name"]):
+def get_field_variables(features, field_values, vocab_txt=VOCAB_TXT, embedding_size=64):
+    name = field_values["name"]
+    with tf.name_scope(name):
         # create field variables
-        field_id_lookup = tf.contrib.lookup.index_table_from_tensor(
-            field_variables["mapping"],
-            default_value=0,
-            name=field_variables["name"] + "_id_lookup"
-        )
+        with tf.io.gfile.GFile(vocab_txt) as f:
+            vocab = f.readlines()
+        vocab_size = len(vocab)
 
-        field_dim = len(field_variables["mapping"])
-        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=1.0 / (field_dim * embedding_size))
-        field_embeddings = tf.get_variable(
-            field_variables["name"] + "_embeddings",
-            [field_dim, embedding_size],
-            regularizer=l2_regularizer
-        )
-        # [field_dim, embedding_size]
-        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=1.0 / field_dim)
-        field_biases = tf.get_variable(
-            field_variables["name"] + "_biases",
-            [field_dim],
-            regularizer=l2_regularizer
-        )
-        # [field_dim]
-        tf.summary.histogram(field_variables["name"] + "_bias", field_biases)
+        string_id_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
+            vocab_txt,
+            tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
+            tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
+        ), 0, name=name + "_id_lookup")
+        initializer = tf.random_uniform_initializer()
+
+        # variables
+        field_embeddings = tf.Variable(initializer([vocab_size, embedding_size]), name=name + "_embeddings")
+        field_biases = tf.Variable(initializer([vocab_size]), name=name + "_biases")
 
         # get field values
-        field_id = tf.identity(features[field_variables["name"]])
-        field_idx = field_id_lookup.lookup(features[field_variables["name"]])
+        field_idx = string_id_table.lookup(features[name])
         # [None]
         field_embed = tf.nn.embedding_lookup(
             field_embeddings,
             field_idx,
-            name=field_variables["name"] + "_embed_lookup"
+            name=name + "_embed_lookup"
         )
         # [None, embedding_size]
         field_bias = tf.nn.embedding_lookup(
             field_biases,
             field_idx,
-            name=field_variables["name"] + "_bias_lookup"
+            name=name + "_bias_lookup"
         )
         # [None, 1]
-    field_variables.update({
-        "id": field_id,
+    field_values.update({
+        "id": features[name],
         "embeddings": field_embeddings,
         "biases": field_biases,
         "embed": field_embed,
-        "bias": field_bias
+        "bias": field_bias,
     })
-    return field_variables
+    return field_values
 
 
-def get_similarity(field_variables, k=100):
-    with tf.name_scope(field_variables["name"]):
-        field_embed_norm = tf.math.l2_normalize(field_variables["embed"], 1)
+def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
+    name = field_values["name"]
+    with tf.name_scope(field_values["name"]):
+        id_string_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
+            vocab_txt,
+            tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
+            tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
+        ), "<UNK>", name=name + "_string_lookup")
+
+        field_embed_norm = tf.math.l2_normalize(field_values["embed"], 1)
         # [None, embedding_size]
-        field_embeddings_norm = tf.math.l2_normalize(field_variables["embeddings"], 1)
+        field_embeddings_norm = tf.math.l2_normalize(field_values["embeddings"], 1)
         # [vocab_size, embedding_size]
         field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
         # [None, mapping_size]
         field_top_k_sim, field_top_k_idx = tf.math.top_k(
             field_cosine_sim,
             k=k,
-            name="top_k_sim_" + field_variables["name"]
+            name="top_k_sim_" + field_values["name"]
         )
         # [None, k], [None, k]
-
-        field_string_lookup = tf.contrib.lookup.index_to_string_table_from_tensor(
-            field_variables["mapping"],
-            name=field_variables["name"] + "_string_lookup"
-        )
-        field_top_k_string = field_string_lookup.lookup(tf.cast(field_top_k_idx, tf.int64))
+        field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64))
         # [None, k]
-    field_variables.update({
+    field_values.update({
         "embed_norm": field_embed_norm,
         "embeddings_norm": field_embeddings_norm,
         "top_k_sim": field_top_k_sim,
         "top_k_idx": field_top_k_idx,
         "top_k_string": field_top_k_string
     })
-    return field_variables
+    return field_values
 
 
 def model_fn(features, labels, mode, params):
@@ -101,14 +95,14 @@ def model_fn(features, labels, mode, params):
     optimizer_name = params.get("optimizer", "Adam")
     learning_rate = params.get("learning_rate", 0.001)
     k = params.get("k", 100)
-    l2_reg = params.get("l2_reg", 0.01)
+    l2_reg = params.get("l2_reg", 0.)
 
     row_id_variables = {"name": field_names["row_id"], "mapping": mappings[field_names["row_id"]]}
     col_id_variables = {"name": field_names["col_id"], "mapping": mappings[field_names["col_id"]]}
 
     with tf.name_scope("mf"):
         # global bias
-        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=1.0)
+        l2_regularizer = tf.keras.regularizers.l2(1.0)
         global_bias = tf.get_variable("global_bias", [], regularizer=l2_regularizer)
         # []
         tf.summary.scalar("global_bias", global_bias)
@@ -160,7 +154,7 @@ def model_fn(features, labels, mode, params):
 
     # evaluation
     with tf.name_scope("regularised_loss"):
-        mse_loss = tf.losses.mean_squared_error(
+        mse_loss = tf.keras.losses.MeanSquaredError()(
             labels[field_names["value"]], predict_value, labels[field_names["weight"]]
         )
         # []
@@ -171,7 +165,7 @@ def model_fn(features, labels, mode, params):
 
     # training
     optimizer = get_optimizer(optimizer_name, learning_rate)
-    train_op = get_train_op(loss, optimizer)
+    train_op = get_minimise_op(loss, optimizer)
     if mode == tf.estimator.ModeKeys.TRAIN:
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
@@ -248,11 +242,12 @@ def train_and_evaluate(args):
 
     # train spec
     input_fn_args = CONFIG["input_fn_args"]
-    train_input_fn = get_csv_input_fn(train_csv, batch_size=batch_size, **input_fn_args)
+    train_input_fn = get_keras_dataset_input_fn(file_pattern=train_csv, batch_size=batch_size, **input_fn_args)
     train_spec = get_train_spec(train_input_fn, train_steps)
 
     # eval spec
-    eval_input_fn = get_csv_input_fn(train_csv, mode=tf.estimator.ModeKeys.EVAL, batch_size=batch_size, **input_fn_args)
+    eval_input_fn = get_keras_dataset_input_fn(file_pattern=train_csv, mode=tf.estimator.ModeKeys.EVAL,
+                                               batch_size=batch_size, **input_fn_args)
     serving_input_fn_args = CONFIG["serving_input_fn_args"]
     exporter = get_exporter(get_serving_input_fn(**serving_input_fn_args))
     eval_spec = get_eval_spec(eval_input_fn, exporter)

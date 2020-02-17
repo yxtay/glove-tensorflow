@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from src.logger import get_logger
+from trainer.logger import get_logger
 
 logger = get_logger(__name__)
 

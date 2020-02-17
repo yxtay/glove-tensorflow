@@ -11,9 +11,9 @@ from trainer.utils import (
 def model_fn(features, labels, mode, params):
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
     embedding_size = params.get("embedding_size", EMBEDDING_SIZE)
+    l2_reg = params.get("l2_reg", L2_REG)
     optimizer_name = params.get("optimizer", OPTIMIZER_NAME)
     learning_rate = params.get("learning_rate", LEARNING_RATE)
-    l2_reg = params.get("l2_reg", L2_REG)
 
     if set(features.keys()) == {"features", "sample_weights"}:
         sample_weights = features["sample_weights"]

@@ -1,8 +1,6 @@
 import tensorflow as tf
 
-from trainer.config import (
-    COL_ID, CONFIG, EMBEDDING_SIZE, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT,
-)
+from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
     file_lines, get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_run_config, get_serving_input_fn,
@@ -76,9 +74,9 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
 def model_fn(features, labels, mode, params):
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
     embedding_size = params.get("embedding_size", EMBEDDING_SIZE)
+    l2_reg = params.get("l2_reg", L2_REG)
     learning_rate = params.get("learning_rate", LEARNING_RATE)
     k = params.get("k", 100)
-    l2_reg = params.get("l2_reg", 0.)
 
     if set(features.keys()) == {"features", "sample_weights"}:
         sample_weights = features["sample_weights"]

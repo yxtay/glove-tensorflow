@@ -1,5 +1,3 @@
-import os
-
 import tensorflow as tf
 
 from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params, parse_args
@@ -11,7 +9,6 @@ fc = tf.feature_column
 def main():
     args = parse_args()
     params = init_params(args.__dict__)
-    job_dir = params["job_dir"]
 
     # set up model and compile
     model = build_glove_model(params["vocab_txt"], params["embedding_size"], params["l2_reg"])
@@ -31,12 +28,10 @@ def main():
     history = model.fit(
         train_dataset,
         epochs=params["train_steps"] // params["steps_per_epoch"],
-        callbacks=get_keras_callbacks(job_dir),
+        callbacks=get_keras_callbacks(params["job_dir"]),
         validation_data=validation_dataset,
         steps_per_epoch=params["steps_per_epoch"],
     )
-    model_path = os.path.join(job_dir, "model")
-    model.save(model_path)
 
 
 if __name__ == '__main__':

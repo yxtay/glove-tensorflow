@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import tensorflow as tf
 
 from trainer.logger import get_logger
-from trainer.glove import get_estimator, get_predict_input_fn
+from trainer.train_estimator_v1 import get_estimator, get_predict_input_fn
 
 logger = get_logger(__name__)
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         logger.info("loading checkpoint: %s.", job_dir)
 
         # get predictions
-        predict_input_fn = get_predict_input_fn(params["mappings"][params["field_names"]["row_id"]])
+        predict_input_fn = get_predict_input_fn(params["vocab_txt"])
         predictions = estimator.predict(predict_input_fn)
         embeddings = format_predictions(predictions)
 

@@ -1,12 +1,9 @@
-from argparse import ArgumentParser
-
 import tensorflow as tf
 
 from trainer.config import (
-    BATCH_SIZE, COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, TARGET, TRAIN_CSV, TRAIN_STEPS,
-    VOCAB_TXT,
+    COL_ID, CONFIG, EMBEDDING_SIZE, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT,
 )
-from trainer.glove_utils import init_params
+from trainer.glove_utils import init_params, parse_args
 from trainer.utils import (
     file_lines, get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_run_config, get_serving_input_fn,
     get_train_spec,
@@ -189,14 +186,14 @@ def get_estimator(job_dir, params):
     return estimator
 
 
-def get_predict_input_fn(mapping):
-    row_id = CONFIG["field_names"]["row_id"]
-    col_id = CONFIG["field_names"]["col_id"]
-    output_types = {row_id: tf.string, col_id: tf.string}
+def get_predict_input_fn(vocab_txt):
+    output_types = {ROW_ID: tf.string, COL_ID: tf.string}
 
     def input_generator():
-        for el in mapping:
-            yield {row_id: el, col_id: el}
+        with tf.io.gfile.GFile(vocab_txt) as f:
+            for line in f:
+                line = line.strip()
+                yield {ROW_ID: line, COL_ID: line}
 
     def input_fn():
         dataset = tf.data.Dataset.from_generator(input_generator, output_types)
@@ -206,7 +203,8 @@ def get_predict_input_fn(mapping):
     return input_fn
 
 
-def train_and_evaluate(args):
+def main():
+    args = parse_args()
     params = init_params(args.__dict__)
 
     # estimator
@@ -231,57 +229,4 @@ def train_and_evaluate(args):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--train-csv",
-        default=TRAIN_CSV,
-        help="path to the training csv data (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--vocab-txt",
-        default=VOCAB_TXT,
-        help="path to the vocab txt (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--job-dir",
-        default="checkpoints/glove",
-        help="job directory (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--use-job-dir-path",
-        action="store_true",
-        help="flag whether to use raw job_dir path (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--embedding-size",
-        type=int,
-        default=EMBEDDING_SIZE,
-        help="embedding size (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--l2-reg",
-        type=float,
-        default=L2_REG,
-        help="scale of l2 regularisation (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=LEARNING_RATE,
-        help="learning rate (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=BATCH_SIZE,
-        help="batch size (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--train-steps",
-        type=int,
-        default=TRAIN_STEPS,
-        help="number of training steps (default: %(default)s)"
-    )
-    args = parser.parse_args()
-
-    train_and_evaluate(args)
+    main()

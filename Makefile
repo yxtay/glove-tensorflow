@@ -27,6 +27,10 @@ train-keras:
 train-estimator:
 	python -m trainer.train_estimator
 
+.PHONY: train-estimator-v1
+train-estimator-v1:
+	python -m trainer.train_estimator_v1
+
 .PHONY: docker-train-estimator
 docker-train:
 	docker run --rm -w=/home \

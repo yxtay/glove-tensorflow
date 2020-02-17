@@ -1,28 +1,11 @@
-from argparse import ArgumentParser
-
 import tensorflow as tf
 
-from trainer.config import (
-    BATCH_SIZE, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, TARGET, TRAIN_CSV, TRAIN_STEPS,
-    VOCAB_TXT,
-)
-from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params
+from trainer.config import CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, TARGET, VOCAB_TXT
+from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params, parse_args, get_lookup_tables
 from trainer.utils import (
-    get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_minimise_op, get_optimizer,
-    get_run_config, get_train_spec,
+    get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_minimise_op, get_optimizer, get_run_config,
+    get_serving_input_fn, get_train_spec,
 )
-
-fc = tf.feature_column
-
-
-def get_feature_columns(vocab_txt, embedding_size=EMBEDDING_SIZE):
-    cat_fc = [fc.categorical_column_with_vocabulary_file(key, vocab_txt, default_value=0)
-              for key in FEATURE_NAMES]
-    emb_fc = [fc.embedding_column(col, embedding_size) for col in cat_fc]
-    return {
-        "categorical": cat_fc,
-        "embedding": emb_fc,
-    }
 
 
 def model_fn(features, labels, mode, params):
@@ -36,10 +19,17 @@ def model_fn(features, labels, mode, params):
         sample_weights = features["sample_weights"]
         features = features["features"]
 
-    model = build_glove_model(vocab_txt, embedding_size, l2_reg)
+    with tf.name_scope("features"):
+        string_id_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
+            vocab_txt,
+            tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
+            tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
+        ), 0, name="string_id_lookup")
+        inputs = {key: string_id_table.lookup(values) for key, values in features.items()}
 
+    model = build_glove_model(vocab_txt, embedding_size, l2_reg)
     training = (mode == tf.estimator.ModeKeys.TRAIN)
-    predict_value = model(features, training=training)
+    predict_value = model(inputs, training=training)
 
     # prediction
     predictions = {"predict_value": predict_value}
@@ -79,21 +69,8 @@ def get_estimator(job_dir, params):
     return estimator
 
 
-def get_serving_input_fn():
-    def serving_input_fn():
-        features = {
-            key: tf.compat.v1.placeholder(tf.int32, [None], name=key)
-            for key in FEATURE_NAMES
-        }
-        return tf.estimator.export.ServingInputReceiver(
-            features=features,
-            receiver_tensors=features,
-        )
-
-    return serving_input_fn
-
-
-def main(args):
+def main():
+    args = parse_args()
     params = init_params(args.__dict__)
 
     # estimator
@@ -101,17 +78,22 @@ def main(args):
 
     # input functions
     dataset_args = {
-        "dataset_fn": get_glove_dataset,
         "file_pattern": params["train_csv"],
-        "vocab_txt": params["vocab_txt"],
         "batch_size": params["batch_size"],
+        **CONFIG["dataset_args"],
     }
+    # dataset_args = {
+    #     "dataset_fn": get_glove_dataset,
+    #     "file_pattern": params["train_csv"],
+    #     "vocab_txt": params["vocab_txt"],
+    #     "batch_size": params["batch_size"],
+    # }
     train_input_fn = get_keras_dataset_input_fn(**dataset_args, num_epochs=None)
     eval_input_fn = get_keras_dataset_input_fn(**dataset_args)
 
     # train, eval spec
     train_spec = get_train_spec(train_input_fn, params["train_steps"])
-    exporter = get_exporter(get_serving_input_fn())
+    exporter = get_exporter(get_serving_input_fn(**CONFIG["serving_input_fn_args"]))
     eval_spec = get_eval_spec(eval_input_fn, exporter)
 
     # train and evaluate
@@ -119,57 +101,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--train-csv",
-        default=TRAIN_CSV,
-        help="path to the training csv data (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--vocab-txt",
-        default=VOCAB_TXT,
-        help="path to the vocab txt (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--job-dir",
-        default="checkpoints/glove",
-        help="job directory (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--use-job-dir-path",
-        action="store_true",
-        help="flag whether to use raw job_dir path (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--embedding-size",
-        type=int,
-        default=EMBEDDING_SIZE,
-        help="embedding size (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--l2-reg",
-        type=float,
-        default=L2_REG,
-        help="scale of l2 regularisation (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=LEARNING_RATE,
-        help="learning rate (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=BATCH_SIZE,
-        help="batch size (default: %(default)s)"
-    )
-    parser.add_argument(
-        "--train-steps",
-        type=int,
-        default=TRAIN_STEPS,
-        help="number of training steps (default: %(default)s)"
-    )
-    args = parser.parse_args()
-
-    main(args)
+    main()

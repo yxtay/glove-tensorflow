@@ -1,10 +1,14 @@
 import json
 import os
+from argparse import ArgumentParser
 from datetime import datetime
 
 import tensorflow as tf
 
-from trainer.config import BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, TRAIN_CSV, VOCAB_TXT
+from trainer.config import (
+    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, STEPS_PER_EPOCH,
+    TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT,
+)
 from trainer.utils import file_lines, get_csv_dataset
 
 fc = tf.feature_column
@@ -119,6 +123,73 @@ class GloVeModelWithFC(tf.keras.Model):
         col_id = self.col_fc(inputs)
         glove_value = self.mf_layer([row_id, col_id])
         return glove_value
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--train-csv",
+        default=TRAIN_CSV,
+        help="path to the training csv data (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--vocab-txt",
+        default=VOCAB_TXT,
+        help="path to the vocab txt (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--job-dir",
+        default="checkpoints/glove",
+        help="job directory (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--use-job-dir-path",
+        action="store_true",
+        help="flag whether to use raw job_dir path (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--embedding-size",
+        type=int,
+        default=EMBEDDING_SIZE,
+        help="embedding size (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--l2-reg",
+        type=float,
+        default=L2_REG,
+        help="scale of l2 regularisation (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--optimizer-name",
+        default=OPTIMIZER_NAME,
+        help="name of optimzer (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=LEARNING_RATE,
+        help="learning rate (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=BATCH_SIZE,
+        help="batch size (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--train-steps",
+        type=int,
+        default=TRAIN_STEPS,
+        help="number of training steps (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--steps-per-epoch",
+        type=int,
+        default=STEPS_PER_EPOCH,
+        help="number of steps per checkpoint (default: %(default)s)"
+    )
+    args = parser.parse_args()
+    return args
 
 
 def init_params(params):

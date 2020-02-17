@@ -28,15 +28,9 @@ CONFIG = {
     "field_names": {
         "row_id": ROW_ID,
         "col_id": COL_ID,
-        "weight": WEIGHT,
         "target": TARGET,
     },
     "dataset_args": {
-        "feature_names": FEATURE_NAMES,
-        "target_names": TARGET_NAMES,
-        "weight_names": WEIGHT_NAMES,
-    },
-    "input_fn_args": {
         "feature_names": FEATURE_NAMES,
         "target_names": TARGET_NAMES,
         "weight_names": WEIGHT_NAMES,

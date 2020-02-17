@@ -1,9 +1,5 @@
-import tensorflow as tf
-
 from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params, parse_args
-from trainer.utils import get_keras_callbacks, get_optimizer
-
-fc = tf.feature_column
+from trainer.utils import get_keras_callbacks, get_loss_fn, get_optimizer
 
 
 def main():
@@ -12,8 +8,8 @@ def main():
 
     # set up model and compile
     model = build_glove_model(params["vocab_txt"], params["embedding_size"], params["l2_reg"])
-    model.compile(optimizer=get_optimizer(params["optimizer_name"], params["learning_rate"]),
-                  loss=tf.keras.losses.MeanSquaredError())
+    model.compile(optimizer=get_optimizer(params["optimizer"], learninig_rate=params["learning_rate"]),
+                  loss=get_loss_fn("MeanSquaredError"))
 
     # set up train, validation dataset
     dataset_args = {

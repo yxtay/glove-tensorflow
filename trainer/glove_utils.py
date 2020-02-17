@@ -6,7 +6,7 @@ from datetime import datetime
 import tensorflow as tf
 
 from trainer.config import (
-    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, STEPS_PER_EPOCH,
+    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH,
     TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT,
 )
 from trainer.utils import file_lines, get_csv_dataset
@@ -87,12 +87,10 @@ class MatrixFactorisation(tf.keras.layers.Layer):
 
 
 def build_glove_model(vocab_txt=VOCAB_TXT, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
-    vocab_size = file_lines(vocab_txt)
-    mf_layer = MatrixFactorisation(
-        vocab_size, embedding_size, l2_reg,
-        name="glove_value"
-    )
+    # init layers
+    mf_layer = MatrixFactorisation(file_lines(vocab_txt), embedding_size, l2_reg, name="glove_value")
 
+    # build model
     inputs = [tf.keras.Input((), name=name) for name in FEATURE_NAMES]
     glove_value = mf_layer(inputs)
     glove_model = tf.keras.Model(inputs, glove_value, name="glove_model")
@@ -133,7 +131,7 @@ def get_id_string_table(vocab_txt=VOCAB_TXT):
         vocab_txt,
         tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
         tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
-    ), "<UNK>", name="string_id_table")
+    ), "<UNK>", name="id_string_table")
     return lookup_table
 
 
@@ -209,8 +207,8 @@ def parse_args():
         help="scale of l2 regularisation (default: %(default)s)"
     )
     parser.add_argument(
-        "--optimizer-name",
-        default=OPTIMIZER_NAME,
+        "--optimizer",
+        default=OPTIMIZER,
         help="name of optimzer (default: %(default)s)"
     )
     parser.add_argument(

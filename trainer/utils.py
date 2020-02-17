@@ -77,24 +77,13 @@ def get_feature_columns(numeric_features=[], numeric_bucketised={},
     }
 
 
-def get_predict_fn(fn_name):
-    predict_fns = {
-        "identity": tf.identity,
-        "sigmoid": tf.sigmoid
-    }
-    return predict_fns[fn_name]
+def get_loss_fn(loss_name, **kwargs):
+    loss_fn = tf.keras.losses.get({"class_name": loss_name, "config": kwargs})
+    return loss_fn
 
 
-def get_loss_fn(loss_name):
-    loss_fns = {
-        "mean_squared_error": tf.keras.losses.MeanSquaredError(),
-        "log_loss": tf.keras.losses.BinaryCrossentropy(from_logit=True),
-    }
-    return loss_fns[loss_name]
-
-
-def get_optimizer(optimizer_name="Adam", learning_rate=0.001):
-    optimizer_config = {"class_name": optimizer_name, "config": {"learning_rate": learning_rate}}
+def get_optimizer(optimizer_name="Adam", **kwargs):
+    optimizer_config = {"class_name": optimizer_name, "config": kwargs}
     optimizer = tf.keras.optimizers.get(optimizer_config)
     return optimizer
 

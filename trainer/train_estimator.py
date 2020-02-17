@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from trainer.config import CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, TARGET, VOCAB_TXT
+from trainer.config import CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, TARGET, VOCAB_TXT
 from trainer.glove_utils import build_glove_model, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_minimise_op, get_optimizer, get_run_config,
-    get_serving_input_fn, get_train_spec,
+    get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_loss_fn, get_minimise_op, get_optimizer,
+    get_run_config, get_serving_input_fn, get_train_spec,
 )
 
 
@@ -12,7 +12,7 @@ def model_fn(features, labels, mode, params):
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
     embedding_size = params.get("embedding_size", EMBEDDING_SIZE)
     l2_reg = params.get("l2_reg", L2_REG)
-    optimizer_name = params.get("optimizer", OPTIMIZER_NAME)
+    optimizer_name = params.get("optimizer", OPTIMIZER)
     learning_rate = params.get("learning_rate", LEARNING_RATE)
 
     if set(features.keys()) == {"features", "sample_weights"}:
@@ -36,7 +36,7 @@ def model_fn(features, labels, mode, params):
 
     # evaluation
     with tf.name_scope("losses"):
-        mse_loss = tf.keras.losses.MeanSquaredError()(
+        mse_loss = get_loss_fn("MeanSquaredError")(
             labels[TARGET], tf.expand_dims(predict_value, -1), sample_weights[TARGET],
         )
         # []
@@ -47,7 +47,7 @@ def model_fn(features, labels, mode, params):
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions, loss=loss)
 
     # training
-    optimizer = get_optimizer(optimizer_name, learning_rate)
+    optimizer = get_optimizer(optimizer_name, learning_rate=learning_rate)
     minimise_op = get_minimise_op(loss, optimizer, model.trainable_variables)
     update_ops = model.get_updates_for(None) + model.get_updates_for(features)
     train_op = tf.group(*minimise_op, *update_ops, name="train_op")
@@ -78,12 +78,6 @@ def main():
         "batch_size": params["batch_size"],
         **CONFIG["dataset_args"],
     }
-    # dataset_args = {
-    #     "dataset_fn": get_glove_dataset,
-    #     "file_pattern": params["train_csv"],
-    #     "vocab_txt": params["vocab_txt"],
-    #     "batch_size": params["batch_size"],
-    # }
     train_input_fn = get_keras_dataset_input_fn(**dataset_args, num_epochs=None)
     eval_input_fn = get_keras_dataset_input_fn(**dataset_args)
 

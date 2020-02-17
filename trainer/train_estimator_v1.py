@@ -1,13 +1,21 @@
+import numpy as np
 import tensorflow as tf
 
 from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    file_lines, get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_run_config, get_serving_input_fn,
-    get_train_spec,
+    file_lines, get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_loss_fn, get_run_config,
+    get_serving_input_fn, get_train_spec,
 )
 
 v1 = tf.compat.v1
+
+
+def get_regularized_variables(name, shape=(), l2_reg=1.0):
+    l2_reg = l2_reg / np.prod(shape)
+    regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=l2_reg)
+    variables = v1.get_variable(name, shape, regularizer=regularizer)
+    return variables
 
 
 def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size=64):
@@ -18,14 +26,8 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         string_id_table = get_string_id_table(vocab_txt)
 
         # variables
-        l2_regularizer = tf.keras.regularizers.l2(1.0 / (vocab_size * embedding_size))
-        field_embeddings = v1.get_variable(
-            name + "_embeddings",
-            [vocab_size, embedding_size],
-            regularizer=l2_regularizer
-        )
-        l2_regularizer = tf.keras.regularizers.l2(1.0 / (vocab_size * embedding_size))
-        field_biases = v1.get_variable(name + "_biases", [vocab_size], regularizer=l2_regularizer)
+        field_embeddings = get_regularized_variables(name + "_embeddings", [vocab_size, embedding_size])
+        field_biases = get_regularized_variables(name + "_biases", [vocab_size])
         v1.summary.histogram(field_values["name"] + "_bias", field_biases)
 
         # get field values
@@ -89,8 +91,7 @@ def model_fn(features, labels, mode, params):
 
     with tf.name_scope("mf"):
         # global bias
-        l2_regularizer = tf.keras.regularizers.l2(1.0)
-        global_bias = v1.get_variable("global_bias", [], regularizer=l2_regularizer)
+        global_bias = get_regularized_variables("global_bias")
         # []
         v1.summary.scalar("global_bias", global_bias)
         # row mapping, embeddings and biases
@@ -141,7 +142,7 @@ def model_fn(features, labels, mode, params):
 
     # evaluation
     with tf.name_scope("losses"):
-        mse_loss = tf.keras.losses.MeanSquaredError()(
+        mse_loss = get_loss_fn("MeanSquaredError")(
             tf.expand_dims(labels[TARGET], -1), tf.expand_dims(predict_value, -1), sample_weights[TARGET]
         )
         # []

@@ -3,10 +3,10 @@ from argparse import ArgumentParser
 import tensorflow as tf
 
 from trainer.config import (
-    BATCH_SIZE, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, TRAIN_CSV, TRAIN_STEPS,
+    BATCH_SIZE, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, TARGET, TRAIN_CSV, TRAIN_STEPS,
     VOCAB_TXT,
 )
-from trainer.glove_utils import build_glove_model, get_glove_dataset, get_lookup_tables, init_params
+from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params
 from trainer.utils import (
     get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_minimise_op, get_optimizer,
     get_run_config, get_train_spec,
@@ -49,9 +49,9 @@ def model_fn(features, labels, mode, params):
     # evaluation
     with tf.name_scope("losses"):
         mse_loss = tf.keras.losses.MeanSquaredError()(
-            labels["glove_value"],
+            labels[TARGET],
             tf.expand_dims(predict_value, -1),
-            sample_weights["glove_value"],
+            sample_weights[TARGET],
         )
         # []
         reg_losses = model.get_losses_for(None) + model.get_losses_for(features)

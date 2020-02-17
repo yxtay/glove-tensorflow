@@ -1,3 +1,6 @@
+JOB_DIR=checkpoints/glove
+TRAIN_STEPS=16384
+
 .PHONY: update-requirements
 update-requirements:
 	pip install --upgrade pip setuptools pip-tools
@@ -21,22 +24,24 @@ docker-data:
 
 .PHONY: train-keras
 train-keras:
-	python -m trainer.train_keras
+	python -m trainer.train_keras --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
 
 .PHONY: train-estimator
 train-estimator:
-	python -m trainer.train_estimator
+	python -m trainer.train_estimator --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
 
 .PHONY: train-estimator-v1
 train-estimator-v1:
-	python -m trainer.train_estimator_v1
+	python -m trainer.train_estimator_v1 --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
 
 .PHONY: docker-train-estimator
 docker-train:
 	docker run --rm -w=/home \
 	  --mount type=bind,source=$(pwd),target=/home \
-	  tensorflow/tensorflow:2.1.0-py3 \
-	  python -m trainer.train_estimator
+	  tensorflow/tensorflow:2.1.0 \
+	  python -m trainer.train_estimator \
+	  --job-dir $(JOB_DIR) \
+	  --train-steps $(TRAIN_STEPS)
 
 .PHONY: tensorboard
 tensorboard:
@@ -46,14 +51,14 @@ tensorboard:
 docker-tensorboard:
 	docker run --rm -w=/home -p 6006:6006 \
 	  --mount type=bind,source=$(pwd),target=/home \
-	  tensorflow/tensorflow:2.1.0-py3 \
+	  tensorflow/tensorflow:2.1.0 \
 	  tensorboard --logdir checkpoints/
 
 .PHONY: serving
 serving:
 	docker run --rm -p 8500:8500 -p 8501:8501 \
-	  --mount type=bind,source=$(shell pwd)/checkpoints/glove/export/exporter,target=/models/glove \
-	  -e MODEL_NAME=glove -t tensorflow/serving:2.1.0-py3
+	  --mount type=bind,source=$(shell pwd)/$(JOB_DIR)/export/exporter,target=/models/glove \
+	  -e MODEL_NAME=glove -t tensorflow/serving:2.1.0
 
 .PHONY: query
 query:
@@ -63,4 +68,4 @@ query:
 
 .PHONY: embeddings
 embeddings:
-	python -m src.model.export_embeddings
+	python -m src.model.export_embeddings --job-dir $(JOB_DIR)

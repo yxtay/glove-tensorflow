@@ -18,6 +18,8 @@ def model_fn(features, labels, mode, params):
     if set(features.keys()) == {"features", "sample_weights"}:
         sample_weights = features["sample_weights"]
         features = features["features"]
+    else:
+        sample_weights = {TARGET: None}
 
     with tf.name_scope("features"):
         string_id_table = get_string_id_table(vocab_txt)
@@ -35,9 +37,7 @@ def model_fn(features, labels, mode, params):
     # evaluation
     with tf.name_scope("losses"):
         mse_loss = tf.keras.losses.MeanSquaredError()(
-            labels[TARGET],
-            tf.expand_dims(predict_value, -1),
-            sample_weights[TARGET],
+            labels[TARGET], tf.expand_dims(predict_value, -1), sample_weights[TARGET],
         )
         # []
         reg_losses = model.get_losses_for(None) + model.get_losses_for(features)

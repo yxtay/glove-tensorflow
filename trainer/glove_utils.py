@@ -86,7 +86,7 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         return config
 
 
-def build_glove_model(vocab_txt, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
+def build_glove_model(vocab_txt=VOCAB_TXT, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
     vocab_size = file_lines(vocab_txt)
     mf_layer = MatrixFactorisation(
         vocab_size, embedding_size, l2_reg,

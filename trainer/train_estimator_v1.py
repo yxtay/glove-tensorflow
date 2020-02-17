@@ -36,7 +36,7 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name=name + "_bias_lookup")
         # [None, 1]
     field_values.update({
-        "id": features[name],
+        "id": tf.identity(features[name]),
         "embeddings": field_embeddings,
         "biases": field_biases,
         "embed": field_embed,
@@ -81,6 +81,8 @@ def model_fn(features, labels, mode, params):
     if set(features.keys()) == {"features", "sample_weights"}:
         sample_weights = features["sample_weights"]
         features = features["features"]
+    else:
+        sample_weights = {TARGET: None}
 
     row_values = {"name": ROW_ID}
     col_values = {"name": COL_ID}
@@ -139,8 +141,8 @@ def model_fn(features, labels, mode, params):
 
     # evaluation
     with tf.name_scope("losses"):
-        mse_loss = v1.losses.mean_squared_error(
-            labels[TARGET], predict_value, sample_weights[TARGET]
+        mse_loss = tf.keras.losses.MeanSquaredError()(
+            tf.expand_dims(labels[TARGET], -1), tf.expand_dims(predict_value, -1), sample_weights[TARGET]
         )
         # []
         loss = mse_loss + l2_reg * v1.losses.get_regularization_loss()
@@ -157,11 +159,10 @@ def model_fn(features, labels, mode, params):
 
 
 def get_estimator(job_dir, params):
-    run_config = get_run_config()
     estimator = tf.estimator.Estimator(
         model_fn=model_fn,
         model_dir=job_dir,
-        config=run_config,
+        config=get_run_config(),
         params=params
     )
     return estimator

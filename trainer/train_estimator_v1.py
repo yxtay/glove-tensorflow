@@ -3,7 +3,7 @@ import tensorflow as tf
 from trainer.config import (
     COL_ID, CONFIG, EMBEDDING_SIZE, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT,
 )
-from trainer.glove_utils import init_params, parse_args
+from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
     file_lines, get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_run_config, get_serving_input_fn,
     get_train_spec,
@@ -17,17 +17,15 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
     with tf.name_scope(name):
         # create field variables
         vocab_size = file_lines(vocab_txt)
-
-        string_id_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
-            vocab_txt,
-            tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
-            tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
-        ), 0, name=name + "_id_lookup")
+        string_id_table = get_string_id_table(vocab_txt)
 
         # variables
         l2_regularizer = tf.keras.regularizers.l2(1.0 / (vocab_size * embedding_size))
-        field_embeddings = v1.get_variable(name + "_embeddings", [vocab_size, embedding_size],
-                                           regularizer=l2_regularizer)
+        field_embeddings = v1.get_variable(
+            name + "_embeddings",
+            [vocab_size, embedding_size],
+            regularizer=l2_regularizer
+        )
         l2_regularizer = tf.keras.regularizers.l2(1.0 / (vocab_size * embedding_size))
         field_biases = v1.get_variable(name + "_biases", [vocab_size], regularizer=l2_regularizer)
         v1.summary.histogram(field_values["name"] + "_bias", field_biases)
@@ -35,17 +33,9 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         # get field values
         field_idx = string_id_table.lookup(features[name])
         # [None]
-        field_embed = tf.nn.embedding_lookup(
-            field_embeddings,
-            field_idx,
-            name=name + "_embed_lookup"
-        )
+        field_embed = tf.nn.embedding_lookup(field_embeddings, field_idx, name=name + "_embed_lookup")
         # [None, embedding_size]
-        field_bias = tf.nn.embedding_lookup(
-            field_biases,
-            field_idx,
-            name=name + "_bias_lookup"
-        )
+        field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name=name + "_bias_lookup")
         # [None, 1]
     field_values.update({
         "id": features[name],
@@ -59,12 +49,8 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
 
 def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
     name = field_values["name"]
-    with tf.name_scope(field_values["name"]):
-        id_string_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
-            vocab_txt,
-            tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
-            tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
-        ), "<UNK>", name=name + "_string_lookup")
+    with tf.name_scope(name):
+        id_string_table = get_id_string_table(vocab_txt)
 
         field_embed_norm = tf.math.l2_normalize(field_values["embed"], 1)
         # [None, embedding_size]
@@ -72,11 +58,8 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
         # [vocab_size, embedding_size]
         field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
         # [None, mapping_size]
-        field_top_k_sim, field_top_k_idx = tf.math.top_k(
-            field_cosine_sim,
-            k=k,
-            name="top_k_sim_" + field_values["name"]
-        )
+        field_top_k = tf.math.top_k(field_cosine_sim, k=k, name="top_k_sim_" + name)
+        field_top_k_sim, field_top_k_idx = field_top_k
         # [None, k], [None, k]
         field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64))
         # [None, k]

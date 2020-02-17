@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from trainer.config import CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER_NAME, TARGET, VOCAB_TXT
-from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params, parse_args, get_lookup_tables
+from trainer.glove_utils import build_glove_model, get_string_id_table, init_params, parse_args
 from trainer.utils import (
     get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_minimise_op, get_optimizer, get_run_config,
     get_serving_input_fn, get_train_spec,
@@ -20,11 +20,7 @@ def model_fn(features, labels, mode, params):
         features = features["features"]
 
     with tf.name_scope("features"):
-        string_id_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
-            vocab_txt,
-            tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
-            tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
-        ), 0, name="string_id_lookup")
+        string_id_table = get_string_id_table(vocab_txt)
         inputs = {key: string_id_table.lookup(values) for key, values in features.items()}
 
     model = build_glove_model(vocab_txt, embedding_size, l2_reg)

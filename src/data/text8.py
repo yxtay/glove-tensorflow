@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from src.logger import get_logger
+from trainer.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -125,15 +125,18 @@ def glove_weight(values, alpha=0.75, x_max=100):
 def save_data(data, save_dir="data"):
     # save vocab
     vocab = data["vocabulary"]
-    file_path = Path(save_dir, "vocab.json")
-    file_path.write_text(json.dumps(vocab, indent=2))
-    logger.info("vocabulary saved: %s.", file_path)
+    txt_path = Path(save_dir, "vocab.txt")
+    txt_path.write_text("\n".join(vocab))
+    logger.info("vocabulary saved: %s.", txt_path)
+    json_path = Path(save_dir, "vocab.json")
+    json_path.write_text(json.dumps(vocab, indent=2))
+    logger.info("vocabulary saved: %s.", json_path)
 
     # save interaction
     df = data["interaction"]
-    file_path = Path(save_dir, "interaction.csv")
-    df.to_csv(file_path, index=False)
-    logger.info("interaction saved: %s.", file_path)
+    csv_path = Path(save_dir, "interaction.csv")
+    df.to_csv(csv_path, index=False)
+    logger.info("interaction saved: %s.", csv_path)
 
     return data
 

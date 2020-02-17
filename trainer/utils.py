@@ -1,4 +1,7 @@
+import os
+
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 EVAL_INTERVAL = 300
@@ -14,13 +17,13 @@ def get_column_info(df, dtypes={}):
     for col in col_names:
         if col in dtypes:
             col_types.append(dtypes[col])
-        elif df[col].dtype in ("float", "float32", "float64"):
+        elif pd.api.types.is_float_dtype(df[col]):
             col_types.append("float")
-        elif df[col].dtype in ("int", "int32", "int64"):
+        elif pd.api.types.is_integer_dtype(df[col]):
             col_types.append("int")
-        elif df[col].dtype in ("bool", "bool8"):
+        elif pd.api.types.is_bool_dtype(df[col]):
             col_types.append("bool")
-        elif df[col].dtype in ("object", "str"):
+        elif pd.api.types.is_string_dtype(df[col]):
             col_types.append("str")
         else:
             col_types.append("str")
@@ -84,52 +87,80 @@ def get_predict_fn(fn_name):
 
 def get_loss_fn(loss_name):
     loss_fns = {
-        "mean_squared_error": tf.losses.mean_squared_error,
-        "log_loss": tf.losses.log_loss
+        "mean_squared_error": tf.keras.losses.MeanSquaredError(),
+        "log_loss": tf.keras.losses.BinaryCrossentropy(from_logit=True),
     }
     return loss_fns[loss_name]
 
 
 def get_optimizer(optimizer_name="Adam", learning_rate=0.001):
-    optimizer_classes = {
-        "Adagrad": tf.train.AdagradOptimizer,
-        "Adam": tf.train.AdamOptimizer,
-        "Ftrl": tf.train.FtrlOptimizer,
-        "RMSProp": tf.train.RMSPropOptimizer,
-        "SGD": tf.train.GradientDescentOptimizer,
-    }
-    optimizer = optimizer_classes[optimizer_name](learning_rate=learning_rate)
+    optimizer_config = {"class_name": optimizer_name, "config": {"learning_rate": learning_rate}}
+    optimizer = tf.keras.optimizers.get(optimizer_config)
     return optimizer
 
 
-def get_train_op(loss, optimizer):
+def get_minimise_op(loss, optimizer, trainable_variables):
     with tf.name_scope("train"):
-        train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
-    return train_op
+        optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
+        minimise_op = optimizer.get_updates(loss, trainable_variables)
+    return minimise_op
 
 
-def get_csv_input_fn(path_pattern, col_names, col_defaults, feature_names, label_names=(),
-                     mode=tf.estimator.ModeKeys.TRAIN, batch_size=32):
+def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_names=(),
+                    batch_size=32, num_epochs=1, compression_type=""):
+    def arrange_columns(features):
+        output = features
+
+        if len(target_names) > 0:
+            targets = {col: features.pop(col) for col in target_names}
+            output = features, targets
+
+            if len(weight_names) > 0:
+                weights = {target_col: features.pop(weight_col)
+                           for target_col, weight_col in zip(target_names, weight_names)}
+                output = features, targets, weights
+
+        return output
+
+    select_columns = feature_names + target_names + weight_names
+    with tf.name_scope("dataset"):
+        dataset = tf.data.experimental.make_csv_dataset(
+            file_pattern=file_pattern,
+            batch_size=batch_size,
+            select_columns=select_columns,
+            num_epochs=num_epochs,
+            num_parallel_reads=8,
+            sloppy=True,
+            num_rows_for_inference=100,
+            compression_type=compression_type,
+        )
+        dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
+    return dataset
+
+
+def map_estimator_dataset_to_keras(*values):
+    if len(values) == 2:
+        features, targets = values
+        if set(features.keys()) == {"features", "sample_weights"}:
+            sample_weights = features["sample_weights"]
+            features = features["features"]
+            return features, targets, sample_weights
+    return values
+
+
+def map_keras_dataset_to_estimator(*values):
+    if len(values) == 3:
+        features, targets, weights = values
+        return {"features": features, "sample_weights": weights}, targets
+
+    return values
+
+
+def get_keras_dataset_input_fn(dataset_fn=get_csv_dataset, **kwargs):
     def input_fn():
-        def name_columns(*columns):
-            named_cols = dict(zip(col_names, columns))
-            features = {col: named_cols[col] for col in feature_names}
-            labels = {col: named_cols[col] for col in label_names}
-            return features, labels
-
         with tf.name_scope("input_fn"):
-            # read, parse, shuffle and batch dataset
-            file_paths = tf.io.gfile.glob(path_pattern)
-            dataset = tf.data.experimental.CsvDataset(file_paths, col_defaults, header=True)
-
-            # repeat for train
-            if mode == tf.estimator.ModeKeys.TRAIN:
-                dataset = dataset.repeat()
-
-            dataset = (dataset
-                       .map(name_columns, num_parallel_calls=8)
-                       .shuffle(16 * batch_size)
-                       .batch(batch_size))
+            dataset = dataset_fn(**kwargs)
+            dataset = dataset.map(map_keras_dataset_to_estimator, num_parallel_calls=-1)
         return dataset
 
     return input_fn
@@ -139,15 +170,15 @@ def get_serving_input_fn(int_features=(), float_features=(), string_features=())
     def serving_input_fn():
         features = {}
         features.update({
-            key: tf.placeholder(tf.int32, [None], name=key)
+            key: tf.compat.v1.placeholder(tf.int32, [None], name=key)
             for key in int_features
         })
         features.update({
-            key: tf.placeholder(tf.float32, [None], name=key)
+            key: tf.compat.v1.placeholder(tf.float32, [None], name=key)
             for key in float_features
         })
         features.update({
-            key: tf.placeholder(tf.string, [None], name=key)
+            key: tf.compat.v1.placeholder(tf.string, [None], name=key)
             for key in string_features
         })
         return tf.estimator.export.ServingInputReceiver(
@@ -188,3 +219,24 @@ def get_eval_spec(input_fn, exporter, steps=EVAL_STEPS, throttle_secs=EVAL_INTER
         start_delay_secs=min(throttle_secs, 120),
         throttle_secs=throttle_secs
     )
+
+
+def file_lines(fname):
+    i = -1
+    with tf.io.gfile.GFile(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
+
+
+def get_keras_callbacks(job_dir, model_pattern="model_{epoch:06d}", log_csv="log.csv"):
+    log_csv = os.path.join(job_dir, log_csv)
+    model_path = os.path.join(job_dir, model_pattern)
+    callbacks = [
+        tf.keras.callbacks.CSVLogger(log_csv),
+        tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True),
+        tf.keras.callbacks.ModelCheckpoint(filepath=model_path),
+        tf.keras.callbacks.TensorBoard(log_dir=job_dir),
+        tf.keras.callbacks.TerminateOnNaN(),
+    ]
+    return callbacks

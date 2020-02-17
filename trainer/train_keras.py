@@ -8,7 +8,7 @@ def main():
 
     # set up model and compile
     model = build_glove_model(params["vocab_txt"], params["embedding_size"], params["l2_reg"])
-    model.compile(optimizer=get_optimizer(params["optimizer"], learninig_rate=params["learning_rate"]),
+    model.compile(optimizer=get_optimizer(params["optimizer"], learning_rate=params["learning_rate"]),
                   loss=get_loss_fn("MeanSquaredError"))
 
     # set up train, validation dataset

@@ -6,12 +6,10 @@ from datetime import datetime
 import tensorflow as tf
 
 from trainer.config import (
-    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH,
-    TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT,
+    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH, TRAIN_CSV,
+    TRAIN_STEPS, VOCAB_TXT,
 )
 from trainer.utils import file_lines, get_csv_dataset
-
-fc = tf.feature_column
 
 
 def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, name="embedding", l2_reg=L2_REG):
@@ -58,9 +56,8 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=L2_REG)
         self.global_bias = self.add_weight(
             name="global_bias",
-            shape=(1,),
+            initializer="zeros",
             regularizer=regularizer,
-            trainable=True
         )
 
     def call(self, inputs):
@@ -78,11 +75,12 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         return logit
 
     def get_config(self):
-        config = {
+        config = super(MatrixFactorisation, self).get_config()
+        config.update({
             "vocab_size": self.vocab_size,
             "embedding_size": self.embedding_size,
-            "l2_reg": self.l2_reg
-        }
+            "l2_reg": self.l2_reg,
+        })
         return config
 
 

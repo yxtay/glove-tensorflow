@@ -1,11 +1,19 @@
 import tensorflow as tf
 
-from trainer.config import CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, TARGET, VOCAB_TXT
+from trainer.config import CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, TARGET, VOCAB_TXT, FEATURE_NAMES
 from trainer.glove_utils import build_glove_model, get_string_id_table, init_params, parse_args
 from trainer.utils import (
     get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_loss_fn, get_minimise_op, get_optimizer,
     get_run_config, get_serving_input_fn, get_train_spec,
 )
+v1 = tf.compat.v1
+
+
+def add_summary(model):
+    glove_mf = model.get_layer("glove_value")
+    v1.summary.scalar(model.weights[0].name, model.weights[0])
+    v1.summary.histogram(glove_mf.row_biases.weights[0].name, glove_mf.row_biases.weights[0])
+    v1.summary.histogram(glove_mf.col_biases.weights[0].name, glove_mf.col_biases.weights[0])
 
 
 def model_fn(features, labels, mode, params):
@@ -23,11 +31,12 @@ def model_fn(features, labels, mode, params):
 
     with tf.name_scope("features"):
         string_id_table = get_string_id_table(vocab_txt)
-        inputs = {key: string_id_table.lookup(values) for key, values in features.items()}
+        features.update({name: string_id_table.lookup(features[name]) for name in FEATURE_NAMES})
 
     model = build_glove_model(vocab_txt, embedding_size, l2_reg)
     training = (mode == tf.estimator.ModeKeys.TRAIN)
-    predict_value = model(inputs, training=training)
+    predict_value = model(features, training=training)
+    add_summary(model)
 
     # prediction
     predictions = {"predict_value": predict_value}

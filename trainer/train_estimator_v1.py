@@ -26,16 +26,16 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         string_id_table = get_string_id_table(vocab_txt)
 
         # variables
-        field_embeddings = get_regularized_variable("embeddings", [vocab_size, embedding_size], l2_reg)
-        field_biases = get_regularized_variable("biases", [vocab_size], l2_reg)
+        field_embeddings = get_regularized_variable(name + "_embeddings", [vocab_size, embedding_size], l2_reg)
+        field_biases = get_regularized_variable(name + "_biases", [vocab_size], l2_reg)
         v1.summary.histogram("biases", field_biases)
 
         # get field values
         field_idx = string_id_table.lookup(features[name])
         # [None]
-        field_embed = tf.nn.embedding_lookup(field_embeddings, field_idx, name="embed_lookup")
+        field_embed = tf.nn.embedding_lookup(field_embeddings, field_idx, name=name + "_embed_lookup")
         # [None, embedding_size]
-        field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name="bias_lookup")
+        field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name=name + "_bias_lookup")
         # [None, 1]
     field_values.update({
         "id": tf.identity(features[name]),
@@ -48,7 +48,8 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
 
 
 def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
-    with tf.name_scope(field_values["name"]):
+    name = field_values["name"]
+    with tf.name_scope(name):
         id_string_table = get_id_string_table(vocab_txt)
 
         field_embed_norm = tf.math.l2_normalize(field_values["embed"], 1)
@@ -57,7 +58,7 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
         # [vocab_size, embedding_size]
         field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
         # [None, mapping_size]
-        field_top_k = tf.math.top_k(field_cosine_sim, k=k, name="top_k_sim")
+        field_top_k = tf.math.top_k(field_cosine_sim, k=k, name="top_k_sim_" + name)
         field_top_k_sim, field_top_k_idx = field_top_k
         # [None, k], [None, k]
         field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64))

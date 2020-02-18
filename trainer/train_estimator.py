@@ -5,8 +5,7 @@ from trainer.config import (
 )
 from trainer.glove_utils import build_glove_model, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    get_csv_input_fn, get_eval_spec, get_exporter, get_loss_fn, get_minimise_op, get_optimizer, get_run_config,
-    get_serving_input_fn, get_train_spec,
+    get_csv_input_fn, get_eval_spec, get_exporter, get_optimizer, get_run_config, get_serving_input_fn, get_train_spec,
 )
 
 v1 = tf.compat.v1
@@ -35,44 +34,22 @@ def model_fn(features, labels, mode, params):
     logit = model(inputs, training=training)
     add_summary(model)
 
-    # head
-    # head = tf.estimator.RegressionHead(weight_column=TARGET)
-    # optimizer = get_optimizer(optimizer_name, learning_rate=learning_rate)
-    # return head.create_estimator_spec(
-    #     features, mode, logits,
-    #     labels=labels[TARGET],
-    #     optimizer=optimizer,
-    #     trainable_variables=model.trainable_variables,
-    #     update_ops=model.get_updates_for(None) + model.get_updates_for(features),
-    #     regularization_losses=model.get_losses_for(None) + model.get_losses_for(features),
-    # )
-    # prediction
-    predictions = {"logit": logit}
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
-
-    # evaluation
-    with tf.name_scope("losses"):
-        mse_loss = get_loss_fn("MeanSquaredError")(
-            labels[TARGET], tf.expand_dims(logit, -1), features.get(WEIGHT),
-        )
-        # []
-        reg_losses = model.get_losses_for(None) + model.get_losses_for(features)
-        regularization_loss = tf.math.add_n(reg_losses)
-        loss = mse_loss + regularization_loss
-        # []
-        v1.summary.scalar("error_loss", mse_loss)
-        v1.summary.scalar("regularization_loss", regularization_loss)
-    if mode == tf.estimator.ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions, loss=loss)
-
     # training
-    optimizer = get_optimizer(optimizer_name, learning_rate=learning_rate)
-    minimise_op = get_minimise_op(loss, optimizer, model.trainable_variables)
-    update_ops = model.get_updates_for(None) + model.get_updates_for(features)
-    train_op = tf.group(*minimise_op, *update_ops, name="train_op")
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions, loss=loss, train_op=train_op)
+    optimizer = None
+    if training:
+        optimizer = get_optimizer(optimizer_name, learning_rate=learning_rate)
+        optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
+
+    # head
+    head = tf.estimator.RegressionHead(weight_column=WEIGHT)
+    return head.create_estimator_spec(
+        features, mode, logit,
+        labels=labels[TARGET] if labels else None,
+        optimizer=optimizer,
+        trainable_variables=model.trainable_variables,
+        update_ops=model.get_updates_for(None) + model.get_updates_for(features),
+        regularization_losses=model.get_losses_for(None) + model.get_losses_for(features),
+    )
 
 
 def get_estimator(job_dir, params):

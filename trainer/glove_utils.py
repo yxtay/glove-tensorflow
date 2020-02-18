@@ -71,8 +71,8 @@ class MatrixFactorisation(tf.keras.layers.Layer):
 
         embed_product = tf.keras.layers.dot([row_embed, col_embed], axes=-1, name="embed_product")
         global_bias = tf.ones_like(embed_product) * self.global_bias
-        logit = tf.keras.layers.Add(name="logit")([embed_product, row_bias, col_bias, global_bias])
-        return logit
+        logits = tf.keras.layers.Add(name="logits")([embed_product, row_bias, col_bias, global_bias])
+        return logits
 
     def get_config(self):
         config = super(MatrixFactorisation, self).get_config()

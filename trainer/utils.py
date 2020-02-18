@@ -133,7 +133,7 @@ def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=
         output = features
 
         if len(target_names) > 0:
-            targets = {col: features.pop(col) for col in target_names}
+            targets = tf.stack([features.pop(col) for col in target_names], -1)
             output = features, targets
 
         return output
@@ -161,6 +161,7 @@ def get_keras_estimator_input_fn(dataset_fn=get_csv_dataset, **kwargs):
     def map_keras_model_to_estimator(*values):
         if len(values) == 3:
             features, targets, weights = values
+            targets = tf.stack([targets[name] for name in targets], -1)
             weights = tf.stack([weights[name] for name in targets], -1)
             return {"features": features, "sample_weights": weights}, targets
 

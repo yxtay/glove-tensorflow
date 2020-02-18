@@ -1,10 +1,10 @@
 import numpy as np
 import tensorflow as tf
 
-from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT, WEIGHT
+from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, VOCAB_TXT, WEIGHT
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    file_lines, get_csv_input_fn, get_eval_spec, get_exporter, get_loss_fn, get_run_config, get_serving_input_fn,
+    file_lines, get_csv_input_fn, get_eval_spec, get_exporter, get_run_config, get_serving_input_fn,
     get_train_spec,
 )
 
@@ -96,7 +96,7 @@ def model_fn(features, labels, mode, params):
         # matrix factorisation
         embed_product = tf.reduce_sum(tf.multiply(row_values["embed"], col_values["embed"]), 1)
         # [None, 1]
-        logit = tf.add_n([
+        logits = tf.add_n([
             tf.ones_like(embed_product) * global_bias,
             row_values["bias"],
             col_values["bias"],
@@ -119,7 +119,7 @@ def model_fn(features, labels, mode, params):
             ), 1)
 
         predictions = {
-            "logit": logit,
+            "logits": logits,
             "row_id": row_values["id"],
             "row_embed": row_values["embed"],
             "row_bias": row_values["bias"],
@@ -136,9 +136,8 @@ def model_fn(features, labels, mode, params):
 
     # evaluation
     with tf.name_scope("losses"):
-        mse_loss = get_loss_fn("MeanSquaredError")(
-            tf.expand_dims(labels[TARGET], -1), tf.expand_dims(logit, -1), features.get(WEIGHT),
-        )
+        loss_fn = tf.keras.losses.MeanSquaredError()
+        mse_loss = loss_fn(labels, tf.expand_dims(logits, -1), features.get(WEIGHT))
         # []
         regularization_loss = l2_reg * v1.losses.get_regularization_loss()
         loss = mse_loss + regularization_loss
@@ -208,5 +207,8 @@ def main():
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from trainer.config import (
-    CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, TARGET, VOCAB_TXT, WEIGHT,
+    CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, VOCAB_TXT, WEIGHT,
 )
 from trainer.glove_utils import build_glove_model, get_string_id_table, init_params, parse_args
 from trainer.utils import (
@@ -31,7 +31,7 @@ def model_fn(features, labels, mode, params):
 
     model = build_glove_model(vocab_txt, embedding_size, l2_reg)
     training = (mode == tf.estimator.ModeKeys.TRAIN)
-    logit = model(inputs, training=training)
+    logits = model(inputs, training=training)
     add_summary(model)
 
     # training
@@ -43,8 +43,8 @@ def model_fn(features, labels, mode, params):
     # head
     head = tf.estimator.RegressionHead(weight_column=WEIGHT)
     return head.create_estimator_spec(
-        features, mode, logit,
-        labels=labels[TARGET] if labels else None,
+        features, mode, logits,
+        labels=labels,
         optimizer=optimizer,
         trainable_variables=model.trainable_variables,
         update_ops=model.get_updates_for(None) + model.get_updates_for(features),
@@ -87,5 +87,8 @@ def main():
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

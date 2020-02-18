@@ -118,7 +118,7 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_names=(
             batch_size=batch_size,
             select_columns=select_columns,
             num_epochs=num_epochs,
-            num_parallel_reads=8,
+            num_parallel_reads=-1,
             sloppy=True,
             num_rows_for_inference=100,
             compression_type=compression_type,
@@ -127,29 +127,49 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_names=(
     return dataset
 
 
-def map_estimator_dataset_to_keras(*values):
-    if len(values) == 2:
-        features, targets = values
-        if set(features.keys()) == {"features", "sample_weights"}:
-            sample_weights = features["sample_weights"]
-            features = features["features"]
-            return features, targets, sample_weights
-    return values
+def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=(),
+                     batch_size=32, num_epochs=1, compression_type=""):
+    def arrange_columns(features):
+        output = features
+
+        if len(target_names) > 0:
+            targets = {col: features.pop(col) for col in target_names}
+            output = features, targets
+
+        return output
+
+    def input_fn():
+        select_columns = feature_names + target_names + weight_names
+        with tf.name_scope("input_fn"):
+            dataset = tf.data.experimental.make_csv_dataset(
+                file_pattern=file_pattern,
+                batch_size=batch_size,
+                select_columns=select_columns,
+                num_epochs=num_epochs,
+                num_parallel_reads=-1,
+                sloppy=True,
+                num_rows_for_inference=100,
+                compression_type=compression_type,
+            )
+            dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
+        return dataset
+
+    return input_fn
 
 
-def map_keras_dataset_to_estimator(*values):
-    if len(values) == 3:
-        features, targets, weights = values
-        return {"features": features, "sample_weights": weights}, targets
+def get_keras_estimator_input_fn(dataset_fn=get_csv_dataset, **kwargs):
+    def map_keras_model_to_estimator(*values):
+        if len(values) == 3:
+            features, targets, weights = values
+            weights = tf.stack([weights[name] for name in targets], -1)
+            return {"features": features, "sample_weights": weights}, targets
 
-    return values
-
-
-def get_keras_dataset_input_fn(dataset_fn=get_csv_dataset, **kwargs):
+        return values
+    
     def input_fn():
         with tf.name_scope("input_fn"):
             dataset = dataset_fn(**kwargs)
-            dataset = dataset.map(map_keras_dataset_to_estimator, num_parallel_calls=-1)
+            dataset = dataset.map(map_keras_model_to_estimator, num_parallel_calls=-1)
         return dataset
 
     return input_fn

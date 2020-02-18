@@ -1,24 +1,24 @@
 import numpy as np
 import tensorflow as tf
 
-from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT
+from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, TARGET, VOCAB_TXT, WEIGHT
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    file_lines, get_eval_spec, get_exporter, get_keras_dataset_input_fn, get_loss_fn, get_run_config,
-    get_serving_input_fn, get_train_spec,
+    file_lines, get_csv_input_fn, get_eval_spec, get_exporter, get_loss_fn, get_run_config, get_serving_input_fn,
+    get_train_spec,
 )
 
 v1 = tf.compat.v1
 
 
-def get_regularized_variables(name, shape=(), l2_reg=1.0):
+def get_regularized_variable(name, shape=(), l2_reg=1.0, **kwargs):
     l2_reg = l2_reg / np.prod(shape)
     regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=l2_reg)
-    variables = v1.get_variable(name, shape, regularizer=regularizer)
+    variables = v1.get_variable(name, shape, regularizer=regularizer, **kwargs)
     return variables
 
 
-def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size=64):
+def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size=64, l2_reg=1.0):
     name = field_values["name"]
     with tf.name_scope(name):
         # create field variables
@@ -26,16 +26,16 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         string_id_table = get_string_id_table(vocab_txt)
 
         # variables
-        field_embeddings = get_regularized_variables(name + "_embeddings", [vocab_size, embedding_size])
-        field_biases = get_regularized_variables(name + "_biases", [vocab_size])
-        v1.summary.histogram(field_values["name"] + "_bias", field_biases)
+        field_embeddings = get_regularized_variable("embeddings", [vocab_size, embedding_size], l2_reg)
+        field_biases = get_regularized_variable("biases", [vocab_size], l2_reg)
+        v1.summary.histogram("biases", field_biases)
 
         # get field values
         field_idx = string_id_table.lookup(features[name])
         # [None]
-        field_embed = tf.nn.embedding_lookup(field_embeddings, field_idx, name=name + "_embed_lookup")
+        field_embed = tf.nn.embedding_lookup(field_embeddings, field_idx, name="embed_lookup")
         # [None, embedding_size]
-        field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name=name + "_bias_lookup")
+        field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name="bias_lookup")
         # [None, 1]
     field_values.update({
         "id": tf.identity(features[name]),
@@ -48,8 +48,7 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
 
 
 def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
-    name = field_values["name"]
-    with tf.name_scope(name):
+    with tf.name_scope(field_values["name"]):
         id_string_table = get_id_string_table(vocab_txt)
 
         field_embed_norm = tf.math.l2_normalize(field_values["embed"], 1)
@@ -58,7 +57,7 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
         # [vocab_size, embedding_size]
         field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
         # [None, mapping_size]
-        field_top_k = tf.math.top_k(field_cosine_sim, k=k, name="top_k_sim_" + name)
+        field_top_k = tf.math.top_k(field_cosine_sim, k=k, name="top_k_sim")
         field_top_k_sim, field_top_k_idx = field_top_k
         # [None, k], [None, k]
         field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64))
@@ -80,18 +79,12 @@ def model_fn(features, labels, mode, params):
     learning_rate = params.get("learning_rate", LEARNING_RATE)
     k = params.get("k", 100)
 
-    if set(features.keys()) == {"features", "sample_weights"}:
-        sample_weights = features["sample_weights"]
-        features = features["features"]
-    else:
-        sample_weights = {TARGET: None}
-
     row_values = {"name": ROW_ID}
     col_values = {"name": COL_ID}
 
     with tf.name_scope("mf"):
         # global bias
-        global_bias = get_regularized_variables("global_bias")
+        global_bias = get_regularized_variable("global_bias", initializer=tf.zeros_initializer)
         # []
         v1.summary.scalar("global_bias", global_bias)
         # row mapping, embeddings and biases
@@ -102,7 +95,7 @@ def model_fn(features, labels, mode, params):
         # matrix factorisation
         embed_product = tf.reduce_sum(tf.multiply(row_values["embed"], col_values["embed"]), 1)
         # [None, 1]
-        predict_value = tf.add_n([
+        logit = tf.add_n([
             tf.ones_like(embed_product) * global_bias,
             row_values["bias"],
             col_values["bias"],
@@ -125,7 +118,7 @@ def model_fn(features, labels, mode, params):
             ), 1)
 
         predictions = {
-            "predicted_value": predict_value,
+            "logit": logit,
             "row_id": row_values["id"],
             "row_embed": row_values["embed"],
             "row_bias": row_values["bias"],
@@ -143,10 +136,13 @@ def model_fn(features, labels, mode, params):
     # evaluation
     with tf.name_scope("losses"):
         mse_loss = get_loss_fn("MeanSquaredError")(
-            tf.expand_dims(labels[TARGET], -1), tf.expand_dims(predict_value, -1), sample_weights[TARGET]
+            tf.expand_dims(labels[TARGET], -1), tf.expand_dims(logit, -1), features.get(WEIGHT),
         )
         # []
-        loss = mse_loss + l2_reg * v1.losses.get_regularization_loss()
+        regularization_loss = l2_reg * v1.losses.get_regularization_loss()
+        loss = mse_loss + regularization_loss
+        v1.summary.scalar("error_loss", mse_loss)
+        v1.summary.scalar("regularization_loss", regularization_loss)
         # []
     if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss)
@@ -199,8 +195,8 @@ def main():
         "batch_size": params["batch_size"],
         **CONFIG["dataset_args"],
     }
-    train_input_fn = get_keras_dataset_input_fn(**dataset_args, num_epochs=None)
-    eval_input_fn = get_keras_dataset_input_fn(**dataset_args)
+    train_input_fn = get_csv_input_fn(**dataset_args, num_epochs=None)
+    eval_input_fn = get_csv_input_fn(**dataset_args)
 
     # eval spec
     train_spec = get_train_spec(train_input_fn, params["train_steps"])

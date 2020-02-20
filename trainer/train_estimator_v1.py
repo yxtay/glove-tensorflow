@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from trainer.config import (
-    COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TOP_K, VOCAB_TXT, WEIGHT,
+    COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TOP_K, VOCAB_TXT,
 )
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
@@ -137,7 +137,7 @@ def model_fn(features, labels, mode, params):
         optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
 
     # head
-    head = tf.estimator.RegressionHead(weight_column=WEIGHT)
+    head = tf.estimator.RegressionHead(weight_column="sample_weights")
     return head.create_estimator_spec(
         features, mode, logits,
         labels=labels,

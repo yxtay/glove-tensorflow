@@ -237,7 +237,7 @@ def parse_args():
         "--top-k",
         type=int,
         default=TOP_K,
-        help="number of similar token (default: %(default)s)"
+        help="number of similar items (default: %(default)s)"
     )
     args = parser.parse_args()
     return args

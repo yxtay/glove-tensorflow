@@ -3,11 +3,11 @@ TRAIN_CSV = "data/interaction.csv"
 VOCAB_TXT = "data/vocab.txt"
 EMBEDDING_SIZE = 64
 L2_REG = 0.01
-OPTIMIZER = "Adamax"
+OPTIMIZER = "Adam"
 LEARNING_RATE = 0.001
 BATCH_SIZE = 1024
 TRAIN_STEPS = 16384
-STEPS_PER_EPOCH = 1024
+STEPS_PER_EPOCH = 16384
 TOP_K = 20
 
 # field_names

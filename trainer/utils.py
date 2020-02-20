@@ -134,6 +134,7 @@ def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=
 
         if len(target_names) > 0:
             targets = tf.stack([features.pop(col) for col in target_names], -1)
+            features["sample_weights"] = tf.stack([features.pop(col) for col in weight_names], -1)
             output = features, targets
 
         return output

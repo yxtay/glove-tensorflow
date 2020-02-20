@@ -1,10 +1,12 @@
 import numpy as np
 import tensorflow as tf
 
-from trainer.config import COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, ROW_ID, VOCAB_TXT, WEIGHT
+from trainer.config import (
+    COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TOP_K, VOCAB_TXT, WEIGHT,
+)
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    file_lines, get_csv_input_fn, get_eval_spec, get_exporter, get_run_config, get_serving_input_fn,
+    file_lines, get_csv_input_fn, get_eval_spec, get_exporter, get_optimizer, get_run_config, get_serving_input_fn,
     get_train_spec,
 )
 
@@ -47,27 +49,26 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
     return field_values
 
 
-def get_similarity(field_values, vocab_txt=VOCAB_TXT, k=100):
+def get_similarity(field_values, vocab_txt=VOCAB_TXT, top_k=TOP_K):
     name = field_values["name"]
     with tf.name_scope(name):
         id_string_table = get_id_string_table(vocab_txt)
 
-        field_embed_norm = tf.math.l2_normalize(field_values["embed"], 1)
+        field_embed_norm = tf.math.l2_normalize(field_values["embed"], -1)
         # [None, embedding_size]
-        field_embeddings_norm = tf.math.l2_normalize(field_values["embeddings"], 1)
+        field_embeddings_norm = tf.math.l2_normalize(field_values["embeddings"], -1)
         # [vocab_size, embedding_size]
         field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
         # [None, mapping_size]
-        field_top_k = tf.math.top_k(field_cosine_sim, k=k, name="top_k_sim_" + name)
+        field_top_k = tf.math.top_k(field_cosine_sim, k=top_k, name="top_k_sim_" + name)
         field_top_k_sim, field_top_k_idx = field_top_k
         # [None, k], [None, k]
-        field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64))
+        field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64), name=name + "_string_lookup")
         # [None, k]
     field_values.update({
         "embed_norm": field_embed_norm,
         "embeddings_norm": field_embeddings_norm,
         "top_k_sim": field_top_k_sim,
-        "top_k_idx": field_top_k_idx,
         "top_k_string": field_top_k_string
     })
     return field_values
@@ -77,21 +78,22 @@ def model_fn(features, labels, mode, params):
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
     embedding_size = params.get("embedding_size", EMBEDDING_SIZE)
     l2_reg = params.get("l2_reg", L2_REG)
+    optimizer_name = params.get("optimizer", OPTIMIZER)
     learning_rate = params.get("learning_rate", LEARNING_RATE)
-    k = params.get("k", 100)
+    top_k = params.get("top_k", TOP_K)
 
     row_values = {"name": ROW_ID}
     col_values = {"name": COL_ID}
 
     with tf.name_scope("mf"):
         # global bias
-        global_bias = get_regularized_variable("global_bias", initializer=tf.zeros_initializer)
+        global_bias = get_regularized_variable("global_bias", initializer=tf.zeros_initializer, l2_reg=l2_reg)
         # []
         v1.summary.scalar("global_bias", global_bias)
         # row mapping, embeddings and biases
-        row_values = get_field_values(features, row_values, vocab_txt, embedding_size)
+        row_values = get_field_values(features, row_values, vocab_txt, embedding_size, l2_reg)
         # column mapping, embeddings and biases
-        col_values = get_field_values(features, col_values, vocab_txt, embedding_size)
+        col_values = get_field_values(features, col_values, vocab_txt, embedding_size, l2_reg)
 
         # matrix factorisation
         embed_product = tf.reduce_sum(tf.multiply(row_values["embed"], col_values["embed"]), 1)
@@ -102,6 +104,7 @@ def model_fn(features, labels, mode, params):
             col_values["bias"],
             embed_product
         ])
+        logits = tf.expand_dims(logits, -1)
         # [None, 1]
 
     # prediction
@@ -109,24 +112,17 @@ def model_fn(features, labels, mode, params):
         # calculate similarity
         with tf.name_scope("similarity"):
             # row similarity
-            row_values = get_similarity(row_values, vocab_txt, k)
+            row_values = get_similarity(row_values, vocab_txt, top_k)
             # col similarity
-            col_values = get_similarity(col_values, vocab_txt, k)
-
-            embed_norm_product = tf.reduce_sum(tf.multiply(
-                row_values["embed_norm"],
-                col_values["embed_norm"]
-            ), 1)
+            col_values = get_similarity(col_values, vocab_txt, top_k)
 
         predictions = {
-            "logits": logits,
             "row_id": row_values["id"],
             "row_embed": row_values["embed"],
             "row_bias": row_values["bias"],
             "col_id": col_values["id"],
             "col_embed": col_values["embed"],
             "col_bias": col_values["bias"],
-            "embed_norm_product": embed_norm_product,
             "top_k_row_similarity": row_values["top_k_sim"],
             "top_k_row_string": row_values["top_k_string"],
             "top_k_col_similarity": col_values["top_k_sim"],
@@ -134,31 +130,28 @@ def model_fn(features, labels, mode, params):
         }
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
-    # evaluation
-    with tf.name_scope("losses"):
-        loss_fn = tf.keras.losses.MeanSquaredError()
-        mse_loss = loss_fn(labels, tf.expand_dims(logits, -1), features.get(WEIGHT))
-        # []
-        regularization_loss = l2_reg * v1.losses.get_regularization_loss()
-        loss = mse_loss + regularization_loss
-        v1.summary.scalar("error_loss", mse_loss)
-        v1.summary.scalar("regularization_loss", regularization_loss)
-        # []
-    if mode == tf.estimator.ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss)
-
     # training
-    with tf.name_scope("train"):
-        optimizer = v1.train.AdamOptimizer(learning_rate)
-        train_op = optimizer.minimize(loss, global_step=v1.train.get_or_create_global_step())
+    optimizer = None
     if mode == tf.estimator.ModeKeys.TRAIN:
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+        optimizer = get_optimizer(optimizer_name, learning_rate=learning_rate)
+        optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
+
+    # head
+    head = tf.estimator.RegressionHead(weight_column=WEIGHT)
+    return head.create_estimator_spec(
+        features, mode, logits,
+        labels=labels,
+        optimizer=optimizer,
+        trainable_variables=v1.trainable_variables(),
+        update_ops=v1.get_collection(v1.GraphKeys.UPDATE_OPS),
+        regularization_losses=v1.losses.get_regularization_losses(),
+    )
 
 
-def get_estimator(job_dir, params):
+def get_estimator(params):
     estimator = tf.estimator.Estimator(
         model_fn=model_fn,
-        model_dir=job_dir,
+        model_dir=params["job_dir"],
         config=get_run_config(),
         params=params
     )
@@ -187,7 +180,7 @@ def main():
     params = init_params(args.__dict__)
 
     # estimator
-    estimator = get_estimator(params["job_dir"], params)
+    estimator = get_estimator(params)
 
     # train spec
     dataset_args = {

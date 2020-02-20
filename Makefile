@@ -68,7 +68,7 @@ serving:
 query:
 	curl -X POST \
 	  http://localhost:8501/v1/models/glove:predict \
-	  -d '{"instances": [{"row_token": "picture", "col_token": "man"}]}'
+	  -d '{"instances": [{"row_token": "man", "col_token": "man"}]}'
 
 .PHONY: embeddings
 embeddings:

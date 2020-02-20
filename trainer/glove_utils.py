@@ -6,8 +6,8 @@ from datetime import datetime
 import tensorflow as tf
 
 from trainer.config import (
-    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH, TRAIN_CSV,
-    TRAIN_STEPS, VOCAB_TXT,
+    BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH, TOP_K,
+    TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT,
 )
 from trainer.utils import file_lines, get_csv_dataset
 
@@ -232,6 +232,12 @@ def parse_args():
         type=int,
         default=STEPS_PER_EPOCH,
         help="number of steps per checkpoint (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=TOP_K,
+        help="number of similar token (default: %(default)s)"
     )
     args = parser.parse_args()
     return args

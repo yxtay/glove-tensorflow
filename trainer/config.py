@@ -8,6 +8,7 @@ LEARNING_RATE = 0.001
 BATCH_SIZE = 1024
 TRAIN_STEPS = 16384
 STEPS_PER_EPOCH = 1024
+TOP_K = 20
 
 # field_names
 ROW_ID = "row_token"

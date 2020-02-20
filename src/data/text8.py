@@ -186,6 +186,8 @@ if __name__ == "__main__":
         text8 = load_data(args.dest)
         data = process_data(text8, args.vocab_size, args.coverage, args.context_size)
         save_data(data, args.dest)
+    except KeyboardInterrupt:
+        pass
     except Exception as e:
         logger.exception(e)
         raise e

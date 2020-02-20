@@ -54,6 +54,10 @@ docker-tensorboard:
 	  tensorflow/tensorflow:2.1.0 \
 	  tensorboard --logdir checkpoints/
 
+.PHONY: saved-model-cli
+saved-model-cli:
+	saved_model_cli show --all --dir $(JOB_DIR)
+
 .PHONY: serving
 serving:
 	docker run --rm -p 8500:8500 -p 8501:8501 \
@@ -64,7 +68,7 @@ serving:
 query:
 	curl -X POST \
 	  http://localhost:8501/v1/models/glove:predict \
-	  -d '{"instances": [{"row_token": "man", "col_token": "man"}]}'
+	  -d '{"instances": [{"row_token": "picture", "col_token": "man"}]}'
 
 .PHONY: embeddings
 embeddings:

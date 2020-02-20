@@ -55,7 +55,7 @@ if __name__ == "__main__":
         logger.info("params loaded: %s.", params_json)
 
         # estimator
-        estimator = get_estimator(job_dir, params)
+        estimator = get_estimator(params)
         logger.info("loading checkpoint: %s.", job_dir)
 
         # get predictions
@@ -68,6 +68,8 @@ if __name__ == "__main__":
             json.dump(embeddings, f, indent=2)
         logger.info("embeddings_json saved: %s.", embeddings_json)
 
+    except KeyboardInterrupt:
+        pass
     except Exception as e:
         logger.exception(e)
         raise e

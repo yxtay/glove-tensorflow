@@ -29,6 +29,22 @@ def main():
         steps_per_epoch=params["steps_per_epoch"],
     )
 
+    # # estimator
+    # estimator = get_keras_estimator(model, params["job_dir"])
+    #
+    # # input functions
+    # dataset_args = {"dataset_fn": get_glove_dataset, **dataset_args}
+    # train_input_fn = get_keras_estimator_input_fn(**dataset_args, num_epochs=None)
+    # eval_input_fn = get_keras_estimator_input_fn(**dataset_args)
+    #
+    # # train, eval spec
+    # train_spec = get_train_spec(train_input_fn, params["train_steps"])
+    # exporter = get_exporter(get_serving_input_fn(**CONFIG["serving_input_fn_args"]))
+    # eval_spec = get_eval_spec(eval_input_fn, exporter)
+    #
+    # # train and evaluate
+    # tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
+
 
 if __name__ == "__main__":
     try:

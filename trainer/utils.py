@@ -95,23 +95,22 @@ def get_minimise_op(loss, optimizer, trainable_variables):
     return minimise_op
 
 
-def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_names=(),
+def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=None,
                     batch_size=32, num_epochs=1, compression_type=""):
     def arrange_columns(features):
         output = features
 
         if len(target_names) > 0:
-            targets = {col: features.pop(col) for col in target_names}
+            targets = tf.stack([features.pop(col) for col in target_names], -1)
             output = features, targets
 
-            if len(weight_names) > 0:
-                weights = {target_col: features.pop(weight_col)
-                           for target_col, weight_col in zip(target_names, weight_names)}
+            if weight_name is not None:
+                weights = features.pop(weight_name)
                 output = features, targets, weights
 
         return output
 
-    select_columns = feature_names + target_names + weight_names
+    select_columns = feature_names + target_names + [weight_name]
     with tf.name_scope("dataset"):
         dataset = tf.data.experimental.make_csv_dataset(
             file_pattern=file_pattern,
@@ -162,12 +161,10 @@ def get_keras_estimator_input_fn(dataset_fn=get_csv_dataset, **kwargs):
     def map_keras_model_to_estimator(*values):
         if len(values) == 3:
             features, targets, weights = values
-            targets = tf.stack([targets[name] for name in targets], -1)
-            weights = tf.stack([weights[name] for name in targets], -1)
             return {"features": features, "sample_weights": weights}, targets
 
         return values
-    
+
     def input_fn():
         with tf.name_scope("input_fn"):
             dataset = dataset_fn(**kwargs)
@@ -207,6 +204,15 @@ def get_run_config(save_checkpoints_secs=EVAL_INTERVAL, keep_checkpoint_max=5):
     )
 
 
+def get_estimator(model_fn, params):
+    return tf.estimator.Estimator(
+        model_fn=model_fn,
+        model_dir=params["job_dir"],
+        config=get_run_config(),
+        params=params
+    )
+
+
 def get_train_spec(input_fn, train_steps):
     return tf.estimator.TrainSpec(
         input_fn=input_fn,
@@ -238,6 +244,14 @@ def file_lines(fname):
         for i, l in enumerate(f):
             pass
     return i + 1
+
+
+def get_keras_estimator(keras_model, model_dir):
+    return tf.keras.estimator.model_to_estimator(
+        keras_model=keras_model,
+        model_dir=model_dir,
+        config=get_run_config(),
+    )
 
 
 def get_keras_callbacks(job_dir, model_pattern="model_{epoch:06d}", log_csv="log.csv"):

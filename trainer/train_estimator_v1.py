@@ -6,7 +6,7 @@ from trainer.config import (
 )
 from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    file_lines, get_csv_input_fn, get_eval_spec, get_exporter, get_optimizer, get_run_config, get_serving_input_fn,
+    file_lines, get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn,
     get_train_spec,
 )
 
@@ -40,7 +40,7 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         field_bias = tf.nn.embedding_lookup(field_biases, field_idx, name=name + "_bias_lookup")
         # [None, 1]
     field_values.update({
-        "id": tf.identity(features[name]),
+        "string": tf.identity(features[name]),
         "embeddings": field_embeddings,
         "biases": field_biases,
         "embed": field_embed,
@@ -117,12 +117,10 @@ def model_fn(features, labels, mode, params):
             col_values = get_similarity(col_values, vocab_txt, top_k)
 
         predictions = {
-            "row_id": row_values["id"],
+            "row_string": row_values["string"],
             "row_embed": row_values["embed"],
-            "row_bias": row_values["bias"],
-            "col_id": col_values["id"],
+            "col_string": col_values["string"],
             "col_embed": col_values["embed"],
-            "col_bias": col_values["bias"],
             "top_k_row_similarity": row_values["top_k_sim"],
             "top_k_row_string": row_values["top_k_string"],
             "top_k_col_similarity": col_values["top_k_sim"],
@@ -148,16 +146,6 @@ def model_fn(features, labels, mode, params):
     )
 
 
-def get_estimator(params):
-    estimator = tf.estimator.Estimator(
-        model_fn=model_fn,
-        model_dir=params["job_dir"],
-        config=get_run_config(),
-        params=params
-    )
-    return estimator
-
-
 def get_predict_input_fn(vocab_txt):
     output_types = {ROW_ID: tf.string, COL_ID: tf.string}
 
@@ -180,18 +168,18 @@ def main():
     params = init_params(args.__dict__)
 
     # estimator
-    estimator = get_estimator(params)
+    estimator = get_estimator(model_fn, params)
 
-    # train spec
+    # input functions
     dataset_args = {
         "file_pattern": params["train_csv"],
         "batch_size": params["batch_size"],
-        **CONFIG["dataset_args"],
+        **CONFIG["input_fn_args"],
     }
     train_input_fn = get_csv_input_fn(**dataset_args, num_epochs=None)
     eval_input_fn = get_csv_input_fn(**dataset_args)
 
-    # eval spec
+    # train, eval spec
     train_spec = get_train_spec(train_input_fn, params["train_steps"])
     exporter = get_exporter(get_serving_input_fn(**CONFIG["serving_input_fn_args"]))
     eval_spec = get_eval_spec(eval_input_fn, exporter)

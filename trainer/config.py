@@ -34,6 +34,11 @@ CONFIG = {
     "dataset_args": {
         "feature_names": FEATURE_NAMES,
         "target_names": TARGET_NAMES,
+        "weight_name": WEIGHT,
+    },
+    "input_fn_args": {
+        "feature_names": FEATURE_NAMES,
+        "target_names": TARGET_NAMES,
         "weight_names": WEIGHT_NAMES,
     },
     "serving_input_fn_args": {

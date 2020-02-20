@@ -5,7 +5,7 @@ from trainer.config import (
 )
 from trainer.glove_utils import build_glove_model, get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
-    get_csv_input_fn, get_eval_spec, get_exporter, get_optimizer, get_run_config, get_serving_input_fn, get_train_spec,
+    get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn, get_train_spec,
 )
 
 v1 = tf.compat.v1
@@ -40,7 +40,7 @@ def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
     # variables
     variables = get_named_variables(model)
     embedding_layer = variables["row_embedding_layer"]
-    embeddings = variables["row_embeddings"]
+    embeddings = embedding_layer.weights[0]
     # [vocab_size, embedding_size]
     embeddings_norm = tf.math.l2_normalize(embeddings, -1)
     # [vocab_size, embedding_size]
@@ -109,28 +109,18 @@ def model_fn(features, labels, mode, params):
     )
 
 
-def get_estimator(params):
-    estimator = tf.estimator.Estimator(
-        model_fn=model_fn,
-        model_dir=params["job_dir"],
-        config=get_run_config(),
-        params=params
-    )
-    return estimator
-
-
 def main():
     args = parse_args()
     params = init_params(args.__dict__)
 
     # estimator
-    estimator = get_estimator(params)
+    estimator = get_estimator(model_fn, params)
 
     # input functions
     dataset_args = {
         "file_pattern": params["train_csv"],
         "batch_size": params["batch_size"],
-        **CONFIG["dataset_args"],
+        **CONFIG["input_fn_args"],
     }
     train_input_fn = get_csv_input_fn(**dataset_args, num_epochs=None)
     eval_input_fn = get_csv_input_fn(**dataset_args)

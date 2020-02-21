@@ -10,6 +10,7 @@ TRAIN_CSV = "data/interaction.csv"
 VOCAB_TXT = "data/vocab.txt"
 EMBEDDING_SIZE = 64
 L2_REG = 0.01
+NEG_FACTOR = 1.
 OPTIMIZER = "Adam"
 LEARNING_RATE = 0.001
 BATCH_SIZE = 1024
@@ -121,6 +122,12 @@ def parse_args():
         help="scale of l2 regularisation (default: %(default)s)"
     )
     parser.add_argument(
+        "--neg-factor",
+        type=float,
+        default=NEG_FACTOR,
+        help="negative loss factor (default: %(default)s)"
+    )
+    parser.add_argument(
         "--optimizer",
         default=OPTIMIZER,
         help="name of optimzer (default: %(default)s)"
@@ -174,7 +181,12 @@ def parse_args():
     params["vocab_txt"] = output_vocab_txt
 
     # save params
-    params_json = os.path.join(job_dir, "params.json")
+    save_params(params)
+    return params
+
+
+def save_params(params, params_json="params.json"):
+    # save params
+    params_json = os.path.join(params["job_dir"], params_json)
     with tf.io.gfile.GFile(params_json, "w") as f:
         json.dump(params, f, indent=2)
-    return params

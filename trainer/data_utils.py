@@ -72,15 +72,12 @@ def get_feature_columns(numeric_features=[], numeric_bucketised={},
 def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=None,
                     batch_size=32, num_epochs=1, compression_type=""):
     def arrange_columns(features):
-        output = features
+        targets = {col: features.pop(col) for col in target_names}
+        output = features, targets
 
-        if len(target_names) > 0:
-            targets = {col: features.pop(col) for col in target_names}
-            output = features, targets
-
-            if weight_name is not None:
-                weights = features.pop(weight_name)
-                output = features, targets, weights
+        if weight_name is not None:
+            weights = features.pop(weight_name)
+            output = features, targets, weights
 
         return output
 
@@ -96,20 +93,16 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=No
             num_rows_for_inference=100,  # if None, read all the rows
             compression_type=compression_type,
         )
-        dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
+        if len(target_names) > 0:
+            dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
     return dataset
 
 
 def get_csv_input_fn(file_pattern, feature_names, target_names=(),
                      batch_size=32, num_epochs=1, compression_type=""):
     def arrange_columns(features):
-        output = features
-
-        if len(target_names) > 0:
-            targets = {col: features.pop(col) for col in target_names}
-            output = features, targets
-
-        return output
+        targets = {col: features.pop(col) for col in target_names}
+        return features, targets
 
     def input_fn():
         select_columns = feature_names + target_names
@@ -124,7 +117,8 @@ def get_csv_input_fn(file_pattern, feature_names, target_names=(),
                 num_rows_for_inference=100,  # if None, read all the rows
                 compression_type=compression_type,
             )
-            dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
+            if len(target_names) > 0:
+                dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
         return dataset
 
     return input_fn

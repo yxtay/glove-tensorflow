@@ -9,79 +9,9 @@ from trainer.config import (
     BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH, TOP_K,
     TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT,
 )
-from trainer.utils import get_csv_dataset
-
-
-def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, name="embedding", l2_reg=L2_REG):
-    scaled_l2_reg = l2_reg / (vocab_size * embedding_size)
-    regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=scaled_l2_reg)
-    embedding_layer = tf.keras.layers.Embedding(
-        vocab_size, embedding_size,
-        embeddings_regularizer=regularizer,
-        name=name
-    )
-    return embedding_layer
-
-
-class MatrixFactorisation(tf.keras.layers.Layer):
-    def __init__(self, vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, name="matrix_factorisation", **kwargs):
-        super(MatrixFactorisation, self).__init__(name=name, **kwargs)
-        self.vocab_size = vocab_size
-        self.embedding_size = embedding_size
-        self.l2_reg = l2_reg
-
-    def build(self, input_shapes):
-        self.row_embeddings = get_embedding_layer(
-            self.vocab_size, self.embedding_size,
-            name="row_embedding",
-            l2_reg=self.l2_reg
-        )
-        self.row_biases = get_embedding_layer(
-            self.vocab_size, 1,
-            name="row_bias",
-            l2_reg=self.l2_reg
-        )
-
-        self.col_embeddings = get_embedding_layer(
-            self.vocab_size, self.embedding_size,
-            name="col_embedding",
-            l2_reg=self.l2_reg
-        )
-        self.col_biases = get_embedding_layer(
-            self.vocab_size, 1,
-            name="col_bias",
-            l2_reg=self.l2_reg
-        )
-
-        regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=L2_REG)
-        self.global_bias = self.add_weight(
-            name="global_bias",
-            initializer="zeros",
-            regularizer=regularizer,
-        )
-
-    def call(self, inputs):
-        row_id, col_id = inputs
-
-        row_embed = self.row_embeddings(row_id)
-        row_bias = self.row_biases(row_id)
-
-        col_embed = self.col_embeddings(col_id)
-        col_bias = self.col_biases(col_id)
-
-        embed_product = tf.keras.layers.dot([row_embed, col_embed], axes=-1, name="embed_product")
-        global_bias = tf.ones_like(embed_product) * self.global_bias
-        logits = tf.keras.layers.Add(name="logits")([embed_product, row_bias, col_bias, global_bias])
-        return logits
-
-    def get_config(self):
-        config = super(MatrixFactorisation, self).get_config()
-        config.update({
-            "vocab_size": self.vocab_size,
-            "embedding_size": self.embedding_size,
-            "l2_reg": self.l2_reg,
-        })
-        return config
+from trainer.data_utils import get_csv_dataset
+from trainer.model_utils import MatrixFactorisation, get_named_variables
+from trainer.utils import cosine_similarity
 
 
 def build_glove_model(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
@@ -93,16 +23,6 @@ def build_glove_model(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
     glove_value = mf_layer(inputs)
     glove_model = tf.keras.Model(inputs, glove_value, name="glove_model")
     return glove_model
-
-
-def cosine_similarity(a, b):
-    a_norm = tf.math.l2_normalize(a, -1)
-    # [None, embedding_size]
-    b_norm = tf.math.l2_normalize(b, -1)
-    # [vocab_size, embedding_size]
-    cosine_sim = tf.matmul(a_norm, b_norm, transpose_b=True)
-    # [None, vocab_size]
-    return cosine_sim
 
 
 def get_string_id_table(vocab_txt=VOCAB_TXT):
@@ -140,24 +60,31 @@ def get_glove_dataset(file_pattern=TRAIN_CSV, vocab_txt=VOCAB_TXT, batch_size=BA
     return dataset
 
 
-def init_params(params):
-    # job_dir
-    if not params["use_job_dir_path"]:
-        datetime_now = datetime.now()
-        job_dir = "{job_dir}_{datetime:%Y%m%d_%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
-        params["job_dir"] = job_dir
-    tf.io.gfile.makedirs(job_dir)
+def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
+    # variables
+    variables = get_named_variables(model)
+    embedding_layer = variables["row_embedding_layer"]
+    embeddings = embedding_layer.weights[0]
+    # [vocab_size, embedding_size]
 
-    # vocab_txt
-    output_vocab_txt = os.path.join(job_dir, os.path.basename(params["vocab_txt"]))
-    tf.io.gfile.copy(params["vocab_txt"], output_vocab_txt, overwrite=True)
-    params["vocab_txt"] = output_vocab_txt
-
-    # save params
-    params_json = os.path.join(job_dir, "params.json")
-    with tf.io.gfile.GFile(params_json, "w") as f:
-        json.dump(params, f, indent=2)
-    return params
+    # values
+    token_id = inputs[0]
+    # [None]
+    embed = embedding_layer(token_id)
+    # [None, embedding_size]
+    cosine_sim = cosine_similarity(embed, embeddings)
+    # [None, vocab_size]
+    top_k_sim, top_k_idx = tf.math.top_k(cosine_sim, k=top_k, name="top_k_sim")
+    # [None, top_k], [None, top_k]
+    id_string_table = get_id_string_table(vocab_txt)
+    top_k_string = id_string_table.lookup(tf.cast(top_k_idx, tf.int64), name="string_lookup")
+    # [None, top_k]
+    values = {
+        "embed:": embed,
+        "top_k_similarity": top_k_sim,
+        "top_k_string": top_k_string,
+    }
+    return values
 
 
 def parse_args():
@@ -230,4 +157,22 @@ def parse_args():
         help="number of similar items (default: %(default)s)"
     )
     args = parser.parse_args()
-    return args
+    params = args.__dict__
+
+    # job_dir
+    if not params["use_job_dir_path"]:
+        datetime_now = datetime.now()
+        job_dir = "{job_dir}_{datetime:%Y%m%d_%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
+        params["job_dir"] = job_dir
+    tf.io.gfile.makedirs(job_dir)
+
+    # vocab_txt
+    output_vocab_txt = os.path.join(job_dir, os.path.basename(params["vocab_txt"]))
+    tf.io.gfile.copy(params["vocab_txt"], output_vocab_txt, overwrite=True)
+    params["vocab_txt"] = output_vocab_txt
+
+    # save params
+    params_json = os.path.join(job_dir, "params.json")
+    with tf.io.gfile.GFile(params_json, "w") as f:
+        json.dump(params, f, indent=2)
+    return params

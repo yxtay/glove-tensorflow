@@ -3,65 +3,11 @@ import tensorflow as tf
 from trainer.config import (
     CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, TARGET, TOP_K, VOCAB_TXT, WEIGHT,
 )
-from trainer.glove_utils import (
-    MatrixFactorisation, cosine_similarity, get_id_string_table, get_string_id_table, init_params, parse_args,
-)
-from trainer.utils import (
-    file_lines, get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn,
-    get_train_spec,
-)
-
-v1 = tf.compat.v1
-
-
-def get_named_variables(model):
-    variables = {
-        "row_bias_layer": model.row_biases,
-        "row_embedding_layer": model.row_embeddings,
-        "col_bias_layer": model.col_biases,
-        "col_embedding_layer": model.col_embeddings,
-        "global_bias": model.global_bias,
-        "row_biases": model.row_biases.weights[0],
-        "row_embeddings": model.row_embeddings.weights[0],
-        "col_biases": model.col_biases.weights[0],
-        "col_embeddings": model.col_embeddings.weights[0],
-    }
-    return variables
-
-
-def add_summary(model):
-    with tf.name_scope("mf"):
-        variables = get_named_variables(model)
-        v1.summary.scalar("global_bias", variables["global_bias"])
-        v1.summary.histogram("row_biases", variables["row_biases"])
-        v1.summary.histogram("col_biases", variables["col_biases"])
-
-
-def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
-    # variables
-    variables = get_named_variables(model)
-    embedding_layer = variables["row_embedding_layer"]
-    embeddings = embedding_layer.weights[0]
-    # [vocab_size, embedding_size]
-
-    # values
-    token_id = inputs[0]
-    # [None]
-    embed = embedding_layer(token_id)
-    # [None, embedding_size]
-    cosine_sim = cosine_similarity(embed, embeddings)
-    # [None, vocab_size]
-    top_k_sim, top_k_idx = tf.math.top_k(cosine_sim, k=top_k, name="top_k_sim")
-    # [None, top_k], [None, top_k]
-    id_string_table = get_id_string_table(vocab_txt)
-    top_k_string = id_string_table.lookup(tf.cast(top_k_idx, tf.int64), name="string_lookup")
-    # [None, top_k]
-    values = {
-        "embed:": embed,
-        "top_k_similarity": top_k_sim,
-        "top_k_string": top_k_string,
-    }
-    return values
+from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
+from trainer.glove_utils import get_similarity, get_string_id_table, parse_args
+from trainer.model_utils import MatrixFactorisation, add_summary, get_optimizer
+from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_train_spec
+from trainer.utils import file_lines
 
 
 def model_fn(features, labels, mode, params):
@@ -107,8 +53,7 @@ def model_fn(features, labels, mode, params):
 
 
 def main():
-    args = parse_args()
-    params = init_params(args.__dict__)
+    params = parse_args()
 
     # estimator
     estimator = get_estimator(model_fn, params)

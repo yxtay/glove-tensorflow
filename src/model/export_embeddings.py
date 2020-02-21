@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from trainer.logger import get_logger
 from trainer.train_estimator_v1 import get_predict_input_fn, model_fn
-from trainer.utils import get_estimator
+from trainer.train_utils import get_estimator
 
 logger = get_logger(__name__)
 

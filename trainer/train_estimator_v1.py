@@ -4,19 +4,17 @@ import tensorflow as tf
 from trainer.config import (
     COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TARGET, TOP_K, VOCAB_TXT, WEIGHT,
 )
-from trainer.glove_utils import cosine_similarity, get_id_string_table, get_string_id_table, init_params, parse_args
-from trainer.utils import (
-    file_lines, get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn,
-    get_train_spec,
-)
-
-v1 = tf.compat.v1
+from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
+from trainer.glove_utils import get_id_string_table, get_string_id_table, parse_args
+from trainer.model_utils import get_optimizer
+from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_train_spec
+from trainer.utils import cosine_similarity, file_lines
 
 
 def get_regularized_variable(name, shape=(), l2_reg=1.0, **kwargs):
     l2_reg = l2_reg / np.prod(shape)
     regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=l2_reg)
-    variables = v1.get_variable(name, shape, regularizer=regularizer, **kwargs)
+    variables = tf.compat.v1.get_variable(name, shape, regularizer=regularizer, **kwargs)
     return variables
 
 
@@ -30,7 +28,7 @@ def get_field_values(features, field_values, vocab_txt=VOCAB_TXT, embedding_size
         # variables
         field_embeddings = get_regularized_variable(name + "_embeddings", [vocab_size, embedding_size], l2_reg)
         field_biases = get_regularized_variable(name + "_biases", [vocab_size], l2_reg)
-        v1.summary.histogram("biases", field_biases)
+        tf.compat.v1.summary.histogram("biases", field_biases)
 
         # get field values
         field_idx = string_id_table.lookup(features[name])
@@ -83,7 +81,7 @@ def model_fn(features, labels, mode, params):
         # global bias
         global_bias = get_regularized_variable("global_bias", initializer=tf.zeros_initializer, l2_reg=l2_reg)
         # []
-        v1.summary.scalar("global_bias", global_bias)
+        tf.compat.v1.summary.scalar("global_bias", global_bias)
         # row mapping, embeddings and biases
         row_values = get_field_values(features, row_values, vocab_txt, embedding_size, l2_reg)
         # column mapping, embeddings and biases
@@ -134,9 +132,9 @@ def model_fn(features, labels, mode, params):
         features, mode, logits,
         labels=labels[TARGET],
         optimizer=optimizer,
-        trainable_variables=v1.trainable_variables(),
-        update_ops=v1.get_collection(v1.GraphKeys.UPDATE_OPS),
-        regularization_losses=v1.losses.get_regularization_losses(),
+        trainable_variables=tf.compat.v1.trainable_variables(),
+        update_ops=tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS),
+        regularization_losses=tf.compat.v1.losses.get_regularization_losses(),
     )
 
 
@@ -158,8 +156,7 @@ def get_predict_input_fn(vocab_txt):
 
 
 def main():
-    args = parse_args()
-    params = init_params(args.__dict__)
+    params = parse_args()
 
     # estimator
     estimator = get_estimator(model_fn, params)

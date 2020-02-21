@@ -1,10 +1,11 @@
-from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params, parse_args
-from trainer.utils import file_lines, get_keras_callbacks, get_loss_fn, get_optimizer
+from trainer.glove_utils import build_glove_model, get_glove_dataset, parse_args
+from trainer.model_utils import get_loss_fn, get_optimizer
+from trainer.train_utils import get_keras_callbacks
+from trainer.utils import file_lines
 
 
 def main():
-    args = parse_args()
-    params = init_params(args.__dict__)
+    params = parse_args()
 
     # set up model and compile
     model = build_glove_model(file_lines(params["vocab_txt"]), params["embedding_size"], params["l2_reg"])

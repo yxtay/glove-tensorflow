@@ -100,7 +100,7 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=No
     return dataset
 
 
-def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=(),
+def get_csv_input_fn(file_pattern, feature_names, target_names=(),
                      batch_size=32, num_epochs=1, compression_type=""):
     def arrange_columns(features):
         output = features
@@ -112,7 +112,7 @@ def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=
         return output
 
     def input_fn():
-        select_columns = feature_names + target_names + weight_names
+        select_columns = feature_names + target_names
         with tf.name_scope("input_fn"):
             dataset = tf.data.experimental.make_csv_dataset(
                 file_pattern=file_pattern,

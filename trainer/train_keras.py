@@ -1,4 +1,5 @@
-from trainer.glove_utils import build_glove_model, get_glove_dataset, parse_args
+from trainer.config import parse_args
+from trainer.glove_utils import build_glove_model, get_glove_dataset
 from trainer.model_utils import get_loss_fn, get_optimizer
 from trainer.train_utils import get_keras_callbacks
 from trainer.utils import file_lines
@@ -8,18 +9,18 @@ def main():
     params = parse_args()
 
     # set up model and compile
-    model = build_glove_model(file_lines(params["vocab_txt"]), params["embedding_size"], params["l2_reg"])
+    model = build_glove_model(
+        file_lines(params["vocab_txt"]),
+        params["embedding_size"],
+        params["l2_reg"],
+        params["row_col_names"],
+    )
     model.compile(optimizer=get_optimizer(params["optimizer"], learning_rate=params["learning_rate"]),
                   loss=get_loss_fn("MeanSquaredError"))
 
     # set up train, validation dataset
-    dataset_args = {
-        "file_pattern": params["train_csv"],
-        "vocab_txt": params["vocab_txt"],
-        "batch_size": params["batch_size"],
-    }
-    train_dataset = get_glove_dataset(**dataset_args, num_epochs=None)
-    validation_dataset = get_glove_dataset(**dataset_args)
+    train_dataset = get_glove_dataset(**params["dataset_args"], num_epochs=None)
+    validation_dataset = get_glove_dataset(**params["dataset_args"])
 
     # train and evaluate
     history = model.fit(

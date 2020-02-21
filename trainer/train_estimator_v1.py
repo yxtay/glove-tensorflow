@@ -2,10 +2,11 @@ import numpy as np
 import tensorflow as tf
 
 from trainer.config import (
-    COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TARGET, TOP_K, VOCAB_TXT, WEIGHT,
+    COL_NAME, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_NAME, TARGET_NAME, TOP_K, VOCAB_TXT, WEIGHT_NAME,
+    parse_args,
 )
 from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
-from trainer.glove_utils import get_id_string_table, get_string_id_table, parse_args
+from trainer.glove_utils import get_id_string_table, get_string_id_table
 from trainer.model_utils import get_optimizer
 from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_train_spec
 from trainer.utils import cosine_similarity, file_lines
@@ -67,6 +68,10 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, top_k=TOP_K):
 
 
 def model_fn(features, labels, mode, params):
+    row_name = params.get("row_name", ROW_NAME)
+    col_name = params.get("col_name", COL_NAME)
+    target_name = params.get("target_name", TARGET_NAME)
+    weight_name = params.get("weight_name", WEIGHT_NAME)
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
     embedding_size = params.get("embedding_size", EMBEDDING_SIZE)
     l2_reg = params.get("l2_reg", L2_REG)
@@ -74,8 +79,8 @@ def model_fn(features, labels, mode, params):
     learning_rate = params.get("learning_rate", LEARNING_RATE)
     top_k = params.get("top_k", TOP_K)
 
-    row_values = {"name": ROW_ID}
-    col_values = {"name": COL_ID}
+    row_values = {"name": row_name}
+    col_values = {"name": col_name}
 
     with tf.name_scope("mf"):
         # global bias
@@ -127,10 +132,10 @@ def model_fn(features, labels, mode, params):
         optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
 
     # head
-    head = tf.estimator.RegressionHead(weight_column=WEIGHT)
+    head = tf.estimator.RegressionHead(weight_column=weight_name)
     return head.create_estimator_spec(
         features, mode, logits,
-        labels=labels[TARGET],
+        labels=labels[target_name],
         optimizer=optimizer,
         trainable_variables=tf.compat.v1.trainable_variables(),
         update_ops=tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS),
@@ -139,13 +144,13 @@ def model_fn(features, labels, mode, params):
 
 
 def get_predict_input_fn(vocab_txt):
-    output_types = {ROW_ID: tf.string, COL_ID: tf.string}
+    output_types = {ROW_NAME: tf.string, COL_NAME: tf.string}
 
     def input_generator():
         with tf.io.gfile.GFile(vocab_txt) as f:
             for line in f:
                 line = line.strip()
-                yield {ROW_ID: line, COL_ID: line}
+                yield {ROW_NAME: line, COL_NAME: line}
 
     def input_fn():
         dataset = tf.data.Dataset.from_generator(input_generator, output_types)
@@ -162,17 +167,12 @@ def main():
     estimator = get_estimator(model_fn, params)
 
     # input functions
-    dataset_args = {
-        "file_pattern": params["train_csv"],
-        "batch_size": params["batch_size"],
-        **CONFIG["input_fn_args"],
-    }
-    train_input_fn = get_csv_input_fn(**dataset_args, num_epochs=None)
-    eval_input_fn = get_csv_input_fn(**dataset_args)
+    train_input_fn = get_csv_input_fn(**params["input_fn_args"], num_epochs=None)
+    eval_input_fn = get_csv_input_fn(**params["input_fn_args"])
 
     # train, eval spec
     train_spec = get_train_spec(train_input_fn, params["train_steps"])
-    exporter = get_exporter(get_serving_input_fn(**CONFIG["serving_input_fn_args"]))
+    exporter = get_exporter(get_serving_input_fn(**params["serving_input_fn_args"]))
     eval_spec = get_eval_spec(eval_input_fn, exporter)
 
     # train and evaluate

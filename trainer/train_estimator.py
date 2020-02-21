@@ -1,29 +1,30 @@
 import tensorflow as tf
 
 from trainer.config import (
-    CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TOP_K, VOCAB_TXT,
+    CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, TARGET, TOP_K, VOCAB_TXT, WEIGHT,
 )
-from trainer.glove_utils import build_glove_model, get_id_string_table, get_string_id_table, init_params, parse_args
+from trainer.glove_utils import (
+    MatrixFactorisation, cosine_similarity, get_id_string_table, get_string_id_table, init_params, parse_args,
+)
 from trainer.utils import (
-    get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn, get_train_spec,
+    file_lines, get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn,
+    get_train_spec,
 )
 
 v1 = tf.compat.v1
 
 
 def get_named_variables(model):
-    mf_layer = model.get_layer("glove_value")
     variables = {
-        "mf_layer": mf_layer,
-        "row_bias_layer": mf_layer.row_biases,
-        "row_embedding_layer": mf_layer.row_embeddings,
-        "col_bias_layer": mf_layer.col_biases,
-        "col_embedding_layer": mf_layer.col_embeddings,
-        "global_bias": mf_layer.weights[0],
-        "row_biases": mf_layer.row_biases.weights[0],
-        "row_embeddings": mf_layer.row_embeddings.weights[0],
-        "col_biases": mf_layer.col_biases.weights[0],
-        "col_embeddings": mf_layer.col_embeddings.weights[0],
+        "row_bias_layer": model.row_biases,
+        "row_embedding_layer": model.row_embeddings,
+        "col_bias_layer": model.col_biases,
+        "col_embedding_layer": model.col_embeddings,
+        "global_bias": model.global_bias,
+        "row_biases": model.row_biases.weights[0],
+        "row_embeddings": model.row_embeddings.weights[0],
+        "col_biases": model.col_biases.weights[0],
+        "col_embeddings": model.col_embeddings.weights[0],
     }
     return variables
 
@@ -42,21 +43,17 @@ def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
     embedding_layer = variables["row_embedding_layer"]
     embeddings = embedding_layer.weights[0]
     # [vocab_size, embedding_size]
-    embeddings_norm = tf.math.l2_normalize(embeddings, -1)
-    # [vocab_size, embedding_size]
-    id_string_table = get_id_string_table(vocab_txt)
 
     # values
-    token_id = inputs[ROW_ID]
+    token_id = inputs[0]
     # [None]
     embed = embedding_layer(token_id)
     # [None, embedding_size]
-    embed_norm = tf.math.l2_normalize(embed, -1)
-    # [None, embedding_size]
-    cosine_sim = tf.matmul(embed_norm, embeddings_norm, transpose_b=True)
+    cosine_sim = cosine_similarity(embed, embeddings)
     # [None, vocab_size]
     top_k_sim, top_k_idx = tf.math.top_k(cosine_sim, k=top_k, name="top_k_sim")
     # [None, top_k], [None, top_k]
+    id_string_table = get_id_string_table(vocab_txt)
     top_k_string = id_string_table.lookup(tf.cast(top_k_idx, tf.int64), name="string_lookup")
     # [None, top_k]
     values = {
@@ -78,10 +75,10 @@ def model_fn(features, labels, mode, params):
     # features transform
     with tf.name_scope("features"):
         string_id_table = get_string_id_table(vocab_txt)
-        inputs = {name: string_id_table.lookup(features[name], name=name + "_lookup") for name in FEATURE_NAMES}
+        inputs = [string_id_table.lookup(features[name], name=name + "_lookup") for name in FEATURE_NAMES]
 
     # model
-    model = build_glove_model(vocab_txt, embedding_size, l2_reg)
+    model = MatrixFactorisation(file_lines(vocab_txt), embedding_size, l2_reg)
     training = (mode == tf.estimator.ModeKeys.TRAIN)
     logits = model(inputs, training=training)
     add_summary(model)
@@ -98,10 +95,10 @@ def model_fn(features, labels, mode, params):
         optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
 
     # head
-    head = tf.estimator.RegressionHead(weight_column="sample_weights")
+    head = tf.estimator.RegressionHead(weight_column=WEIGHT)
     return head.create_estimator_spec(
         features, mode, logits,
-        labels=labels,
+        labels=labels[TARGET],
         optimizer=optimizer,
         trainable_variables=model.trainable_variables,
         update_ops=model.get_updates_for(None) + model.get_updates_for(features),

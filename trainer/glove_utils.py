@@ -9,7 +9,7 @@ from trainer.config import (
     BATCH_SIZE, CONFIG, EMBEDDING_SIZE, FEATURE_NAMES, L2_REG, LEARNING_RATE, OPTIMIZER, STEPS_PER_EPOCH, TOP_K,
     TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT,
 )
-from trainer.utils import file_lines, get_csv_dataset
+from trainer.utils import get_csv_dataset
 
 
 def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, name="embedding", l2_reg=L2_REG):
@@ -24,8 +24,8 @@ def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, name="embeddi
 
 
 class MatrixFactorisation(tf.keras.layers.Layer):
-    def __init__(self, vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, **kwargs):
-        super(MatrixFactorisation, self).__init__(**kwargs)
+    def __init__(self, vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, name="matrix_factorisation", **kwargs):
+        super(MatrixFactorisation, self).__init__(name=name, **kwargs)
         self.vocab_size = vocab_size
         self.embedding_size = embedding_size
         self.l2_reg = l2_reg
@@ -84,9 +84,9 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         return config
 
 
-def build_glove_model(vocab_txt=VOCAB_TXT, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
+def build_glove_model(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG):
     # init layers
-    mf_layer = MatrixFactorisation(file_lines(vocab_txt), embedding_size, l2_reg, name="glove_value")
+    mf_layer = MatrixFactorisation(vocab_size, embedding_size, l2_reg, name="glove_value")
 
     # build model
     inputs = [tf.keras.Input((), name=name) for name in FEATURE_NAMES]
@@ -95,24 +95,14 @@ def build_glove_model(vocab_txt=VOCAB_TXT, embedding_size=EMBEDDING_SIZE, l2_reg
     return glove_model
 
 
-class GloVeModel(tf.keras.Model):
-    def __init__(self, vocab_txt=VOCAB_TXT, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, **kwargs):
-        super(GloVeModel, self).__init__(**kwargs)
-        self.vocab_txt = vocab_txt
-        self.embedding_size = embedding_size
-        self.l2_reg = l2_reg
-
-    def build(self, input_shapes):
-        self.mf_layer = MatrixFactorisation(
-            file_lines(self.vocab_txt),
-            self.embedding_size,
-            self.l2_reg,
-            name="glove_value"
-        )
-
-    def call(self, inputs):
-        glove_value = self.mf_layer(inputs)
-        return glove_value
+def cosine_similarity(a, b):
+    a_norm = tf.math.l2_normalize(a, -1)
+    # [None, embedding_size]
+    b_norm = tf.math.l2_normalize(b, -1)
+    # [vocab_size, embedding_size]
+    cosine_sim = tf.matmul(a_norm, b_norm, transpose_b=True)
+    # [None, vocab_size]
+    return cosine_sim
 
 
 def get_string_id_table(vocab_txt=VOCAB_TXT):
@@ -137,7 +127,7 @@ def get_glove_dataset(file_pattern=TRAIN_CSV, vocab_txt=VOCAB_TXT, batch_size=BA
     string_id_table = get_string_id_table(vocab_txt)
 
     def lookup(features, targets, weights):
-        features = {name: string_id_table.lookup(values, name=name + "_lookup") for name, values in features.items()}
+        features = {name: string_id_table.lookup(features[name], name=name + "_lookup") for name in FEATURE_NAMES}
         return features, targets, weights
 
     dataset_args = {

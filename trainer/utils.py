@@ -101,7 +101,7 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=No
         output = features
 
         if len(target_names) > 0:
-            targets = tf.stack([features.pop(col) for col in target_names], -1)
+            targets = {col: features.pop(col) for col in target_names}
             output = features, targets
 
             if weight_name is not None:
@@ -118,8 +118,8 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=No
             select_columns=select_columns,
             num_epochs=num_epochs,
             num_parallel_reads=-1,
-            sloppy=True,
-            num_rows_for_inference=100,
+            sloppy=True,  # improves performance, non-deterministic ordering
+            num_rows_for_inference=100,  # if None, read all the rows
             compression_type=compression_type,
         )
         dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
@@ -132,8 +132,7 @@ def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=
         output = features
 
         if len(target_names) > 0:
-            targets = tf.stack([features.pop(col) for col in target_names], -1)
-            features["sample_weights"] = tf.stack([features.pop(col) for col in weight_names], -1)
+            targets = {col: features.pop(col) for col in target_names}
             output = features, targets
 
         return output
@@ -147,8 +146,8 @@ def get_csv_input_fn(file_pattern, feature_names, target_names=(), weight_names=
                 select_columns=select_columns,
                 num_epochs=num_epochs,
                 num_parallel_reads=-1,
-                sloppy=True,
-                num_rows_for_inference=100,
+                sloppy=True,  # improves performance, non-deterministic ordering
+                num_rows_for_inference=100,  # if None, read all the rows
                 compression_type=compression_type,
             )
             dataset = dataset.map(arrange_columns, num_parallel_calls=-1)

@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 from trainer.config import (
-    COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TOP_K, VOCAB_TXT,
+    COL_ID, CONFIG, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_ID, TARGET, TOP_K, VOCAB_TXT, WEIGHT,
 )
-from trainer.glove_utils import get_id_string_table, get_string_id_table, init_params, parse_args
+from trainer.glove_utils import cosine_similarity, get_id_string_table, get_string_id_table, init_params, parse_args
 from trainer.utils import (
     file_lines, get_csv_input_fn, get_estimator, get_eval_spec, get_exporter, get_optimizer, get_serving_input_fn,
     get_train_spec,
@@ -54,11 +54,7 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, top_k=TOP_K):
     with tf.name_scope(name):
         id_string_table = get_id_string_table(vocab_txt)
 
-        field_embed_norm = tf.math.l2_normalize(field_values["embed"], -1)
-        # [None, embedding_size]
-        field_embeddings_norm = tf.math.l2_normalize(field_values["embeddings"], -1)
-        # [vocab_size, embedding_size]
-        field_cosine_sim = tf.matmul(field_embed_norm, field_embeddings_norm, transpose_b=True)
+        field_cosine_sim = cosine_similarity(field_values["embed"], field_values["embeddings"])
         # [None, mapping_size]
         field_top_k = tf.math.top_k(field_cosine_sim, k=top_k, name="top_k_sim_" + name)
         field_top_k_sim, field_top_k_idx = field_top_k
@@ -66,8 +62,6 @@ def get_similarity(field_values, vocab_txt=VOCAB_TXT, top_k=TOP_K):
         field_top_k_string = id_string_table.lookup(tf.cast(field_top_k_idx, tf.int64), name=name + "_string_lookup")
         # [None, k]
     field_values.update({
-        "embed_norm": field_embed_norm,
-        "embeddings_norm": field_embeddings_norm,
         "top_k_sim": field_top_k_sim,
         "top_k_string": field_top_k_string
     })
@@ -135,10 +129,10 @@ def model_fn(features, labels, mode, params):
         optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
 
     # head
-    head = tf.estimator.RegressionHead(weight_column="sample_weights")
+    head = tf.estimator.RegressionHead(weight_column=WEIGHT)
     return head.create_estimator_spec(
         features, mode, logits,
-        labels=labels,
+        labels=labels[TARGET],
         optimizer=optimizer,
         trainable_variables=v1.trainable_variables(),
         update_ops=v1.get_collection(v1.GraphKeys.UPDATE_OPS),

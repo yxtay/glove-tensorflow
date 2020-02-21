@@ -1,5 +1,5 @@
 from trainer.glove_utils import build_glove_model, get_glove_dataset, init_params, parse_args
-from trainer.utils import get_keras_callbacks, get_loss_fn, get_optimizer
+from trainer.utils import file_lines, get_keras_callbacks, get_loss_fn, get_optimizer
 
 
 def main():
@@ -7,7 +7,7 @@ def main():
     params = init_params(args.__dict__)
 
     # set up model and compile
-    model = build_glove_model(params["vocab_txt"], params["embedding_size"], params["l2_reg"])
+    model = build_glove_model(file_lines(params["vocab_txt"]), params["embedding_size"], params["l2_reg"])
     model.compile(optimizer=get_optimizer(params["optimizer"], learning_rate=params["learning_rate"]),
                   loss=get_loss_fn("MeanSquaredError"))
 

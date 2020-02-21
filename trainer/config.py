@@ -16,9 +16,6 @@ COL_ID = "col_token"
 TARGET = "glove_value"
 WEIGHT = "glove_weight"
 # input_fn_args
-COLUMN_NAMES = ["row_token_id", "col_token_id", "count", "value",
-                "row_token", "col_token", "glove_weight", "glove_value"]
-COLUMN_DEFAULTS = [[0], [0], [0.0], [0.0], [""], [""], [0.0], [0.0]]
 FEATURE_NAMES = [ROW_ID, COL_ID]
 TARGET_NAMES = [TARGET]
 WEIGHT_NAMES = [WEIGHT]

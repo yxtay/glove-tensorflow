@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from trainer.config import (
-    EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_COL_NAMES, TARGET_NAME, TOP_K, VOCAB_TXT, WEIGHT_NAME,
+    COL_NAME, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_NAME, TARGET_NAME, TOP_K, VOCAB_TXT, WEIGHT_NAME,
     parse_args,
 )
 from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
@@ -12,7 +12,8 @@ from trainer.utils import file_lines
 
 
 def model_fn(features, labels, mode, params):
-    row_col_names = params.get("row_col_names", ROW_COL_NAMES)
+    row_name = params.get("row_name", ROW_NAME)
+    col_name = params.get("col_name", COL_NAME)
     target_name = params.get("target_name", TARGET_NAME)
     weight_name = params.get("weight_name", WEIGHT_NAME)
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
@@ -25,7 +26,7 @@ def model_fn(features, labels, mode, params):
     # features transform
     with tf.name_scope("features"):
         string_id_table = get_string_id_table(vocab_txt)
-        inputs = [string_id_table.lookup(features[name], name=name + "_lookup") for name in row_col_names]
+        inputs = [string_id_table.lookup(features[name], name=name + "_lookup") for name in [row_name, col_name]]
 
     # model
     model = MatrixFactorisation(file_lines(vocab_txt), embedding_size, l2_reg)

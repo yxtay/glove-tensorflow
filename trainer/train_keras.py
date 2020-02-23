@@ -1,20 +1,33 @@
+import tensorflow as tf
+
 from trainer.config import parse_args
-from trainer.glove_utils import build_glove_model, get_glove_dataset
-from trainer.model_utils import get_loss_fn, get_optimizer
+from trainer.glove_utils import get_glove_dataset
+from trainer.model_utils import MatrixFactorisation, get_loss_fn, get_optimizer
 from trainer.train_utils import get_keras_callbacks
 from trainer.utils import file_lines
+
+
+def build_model(params):
+    # init layers
+    mf_layer = MatrixFactorisation(
+        file_lines(params["vocab_txt"]),
+        params["embedding_size"],
+        params["l2_reg"],
+        name="glove_value"
+    )
+
+    # build model
+    inputs = [tf.keras.Input((), name=name) for name in [params["row_name"], params["col_name"]]]
+    glove_value = mf_layer(inputs)
+    glove_model = tf.keras.Model(inputs, glove_value, name="glove_model")
+    return glove_model
 
 
 def main():
     params = parse_args()
 
-    # set up model and compile
-    model = build_glove_model(
-        file_lines(params["vocab_txt"]),
-        params["embedding_size"],
-        params["l2_reg"],
-        params["row_col_names"],
-    )
+    # build model
+    model = build_model(params)
     model.compile(optimizer=get_optimizer(params["optimizer"], learning_rate=params["learning_rate"]),
                   loss=get_loss_fn("MeanSquaredError"))
 

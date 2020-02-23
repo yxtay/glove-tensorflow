@@ -25,36 +25,61 @@ TARGET_NAME = "glove_value"
 WEIGHT_NAME = "glove_weight"
 POS_NAME = "value"
 NEG_NAME = "neg_weight"
-ROW_COL_NAMES = [ROW_NAME, COL_NAME]
 
 
-def get_config(params):
+def get_function_args(params):
     row_name = params["row_name"]
     col_name = params["col_name"]
     target_name = params["target_name"]
     weight_name = params["weight_name"]
-    row_col_names = [row_name, col_name]
-    config = {
-        "row_col_names": row_col_names,
+    args = {
         "dataset_args": {
             "vocab_txt": params["vocab_txt"],
             "file_pattern": params["train_csv"],
             "batch_size": params["batch_size"],
-            "feature_names": row_col_names,
+            "feature_names": [row_name, col_name],
             "target_names": [target_name],
             "weight_name": weight_name,
         },
         "input_fn_args": {
             "file_pattern": params["train_csv"],
             "batch_size": params["batch_size"],
-            "feature_names": row_col_names + [weight_name],
+            "feature_names": [row_name, col_name, weight_name],
             "target_names": [target_name],
         },
         "serving_input_fn_args": {
-            "string_features": row_col_names,
+            "string_features": [row_name, col_name],
         }
     }
-    return config
+    return args
+
+
+def save_params(params, params_json="params.json"):
+    # save params
+    params_json = os.path.join(params["job_dir"], params_json)
+    with tf.io.gfile.GFile(params_json, "w") as f:
+        json.dump(params, f, indent=2)
+
+
+def init_params(params):
+    # get function args
+    params.update(get_function_args(params))
+
+    # job_dir
+    if not params["use_job_dir_path"]:
+        datetime_now = datetime.now()
+        job_dir = "{job_dir}_{datetime:%Y%m%d_%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
+        params["job_dir"] = job_dir
+    tf.io.gfile.makedirs(job_dir)
+
+    # vocab_txt
+    output_vocab_txt = os.path.join(job_dir, os.path.basename(params["vocab_txt"]))
+    tf.io.gfile.copy(params["vocab_txt"], output_vocab_txt, overwrite=True)
+    params["vocab_txt"] = output_vocab_txt
+
+    # save params
+    save_params(params)
+    return params
 
 
 def parse_args():
@@ -105,9 +130,9 @@ def parse_args():
         help="job directory (default: %(default)s)"
     )
     parser.add_argument(
-        "--use-job-dir-path",
+        "--disable-datetime-path",
         action="store_true",
-        help="flag whether to use raw job_dir path (default: %(default)s)"
+        help="flag whether to disable appending datetime in job_dir path (default: %(default)s)"
     )
     parser.add_argument(
         "--embedding-size",
@@ -163,30 +188,5 @@ def parse_args():
         help="number of similar items (default: %(default)s)"
     )
     args = parser.parse_args()
-    params = args.__dict__
-
-    # update field name configs
-    params.update(get_config(params))
-
-    # job_dir
-    if not params["use_job_dir_path"]:
-        datetime_now = datetime.now()
-        job_dir = "{job_dir}_{datetime:%Y%m%d_%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
-        params["job_dir"] = job_dir
-    tf.io.gfile.makedirs(job_dir)
-
-    # vocab_txt
-    output_vocab_txt = os.path.join(job_dir, os.path.basename(params["vocab_txt"]))
-    tf.io.gfile.copy(params["vocab_txt"], output_vocab_txt, overwrite=True)
-    params["vocab_txt"] = output_vocab_txt
-
-    # save params
-    save_params(params)
+    params = init_params(args.__dict__)
     return params
-
-
-def save_params(params, params_json="params.json"):
-    # save params
-    params_json = os.path.join(params["job_dir"], params_json)
-    with tf.io.gfile.GFile(params_json, "w") as f:
-        json.dump(params, f, indent=2)

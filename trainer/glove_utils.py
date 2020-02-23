@@ -1,20 +1,9 @@
 import tensorflow as tf
 
-from trainer.config import EMBEDDING_SIZE, L2_REG, ROW_COL_NAMES, TOP_K, VOCAB_TXT
+from trainer.config import TOP_K, VOCAB_TXT
 from trainer.data_utils import get_csv_dataset
-from trainer.model_utils import MatrixFactorisation, get_named_variables
+from trainer.model_utils import get_named_variables
 from trainer.utils import cosine_similarity
-
-
-def build_glove_model(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, row_col_names=ROW_COL_NAMES):
-    # init layers
-    mf_layer = MatrixFactorisation(vocab_size, embedding_size, l2_reg, name="glove_value")
-
-    # build model
-    inputs = [tf.keras.Input((), name=name) for name in row_col_names]
-    glove_value = mf_layer(inputs)
-    glove_model = tf.keras.Model(inputs, glove_value, name="glove_model")
-    return glove_model
 
 
 def get_string_id_table(vocab_txt=VOCAB_TXT):

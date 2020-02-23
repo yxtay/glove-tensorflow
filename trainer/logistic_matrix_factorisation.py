@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 from trainer.config import (
-    EMBEDDING_SIZE, L2_REG, LEARNING_RATE, NEG_FACTOR, NEG_NAME, OPTIMIZER, POS_NAME, ROW_COL_NAMES, TOP_K, VOCAB_TXT,
-    parse_args, save_params,
+    COL_NAME, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, NEG_FACTOR, NEG_NAME, OPTIMIZER, POS_NAME, ROW_NAME, TOP_K,
+    VOCAB_TXT, parse_args, save_params,
 )
 from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
 from trainer.glove_utils import get_similarity, get_string_id_table
@@ -12,7 +12,8 @@ from trainer.utils import file_lines
 
 
 def model_fn(features, labels, mode, params):
-    row_col_names = params.get("row_col_names", ROW_COL_NAMES)
+    row_name = params.get("row_name", ROW_NAME)
+    col_name = params.get("col_name", COL_NAME)
     pos_name = params.get("pos_name", POS_NAME)
     neg_name = params.get("neg_name", NEG_NAME)
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
@@ -26,7 +27,7 @@ def model_fn(features, labels, mode, params):
     # features transform
     with tf.name_scope("features"):
         string_id_table = get_string_id_table(vocab_txt)
-        inputs = [string_id_table.lookup(features[name], name=name + "_lookup") for name in row_col_names]
+        inputs = [string_id_table.lookup(features[name], name=name + "_lookup") for name in [row_name, col_name]]
 
     # model
     model = MatrixFactorisation(file_lines(vocab_txt), embedding_size, l2_reg)

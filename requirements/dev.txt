@@ -5,12 +5,11 @@
 #    pip-compile --build-isolation --output-file=requirements/dev.txt requirements/dev.in
 #
 appdirs==1.4.3            # via black, virtualenv
-appnope==0.1.0            # via ipykernel, ipython
 aspy.yaml==1.3.0          # via pre-commit
 attrs==19.3.0             # via black, jsonschema, pytest
 backcall==0.1.0           # via ipython
 black==19.10b0
-bleach==3.1.0             # via nbconvert
+bleach==3.1.1             # via nbconvert
 cfgv==3.0.0               # via pre-commit
 click==7.0                # via black
 coverage==5.0.3           # via pytest-cov
@@ -21,7 +20,6 @@ entrypoints==0.3          # via flake8, nbconvert
 filelock==3.0.12          # via virtualenv
 flake8==3.7.9
 identify==1.4.11          # via pre-commit
-importlib-metadata==1.5.0  # via jsonschema, pluggy, pre-commit, pytest, virtualenv
 ipykernel==5.1.4          # via notebook
 ipython-genutils==0.2.0   # via nbformat, notebook, traitlets
 ipython==7.12.0           # via ipykernel
@@ -75,7 +73,6 @@ typed-ast==1.4.1          # via black
 virtualenv==20.0.4        # via pre-commit
 wcwidth==0.1.8            # via prompt-toolkit, pytest
 webencodings==0.5.1       # via bleach
-zipp==2.2.0               # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

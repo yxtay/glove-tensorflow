@@ -66,11 +66,11 @@ def init_params(params):
     params.update(get_function_args(params))
 
     # job_dir
-    if not params["use_job_dir_path"]:
+    if not params["disable_datetime_path"]:
         datetime_now = datetime.now()
         job_dir = "{job_dir}_{datetime:%Y%m%d_%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
         params["job_dir"] = job_dir
-    tf.io.gfile.makedirs(job_dir)
+    tf.io.gfile.makedirs(params["job_dir"])
 
     # vocab_txt
     output_vocab_txt = os.path.join(job_dir, os.path.basename(params["vocab_txt"]))

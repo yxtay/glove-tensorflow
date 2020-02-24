@@ -6,9 +6,8 @@ from trainer.config import (
     parse_args,
 )
 from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
-from trainer.glove_utils import get_id_string_table, get_string_id_table
-from trainer.model_utils import get_optimizer
-from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_train_spec
+from trainer.model_utils import get_id_string_table, get_string_id_table
+from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_optimizer, get_train_spec
 from trainer.utils import cosine_similarity, file_lines
 
 

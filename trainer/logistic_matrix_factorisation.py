@@ -5,9 +5,8 @@ from trainer.config import (
     VOCAB_TXT, parse_args, save_params,
 )
 from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
-from trainer.glove_utils import get_similarity, get_string_id_table
-from trainer.model_utils import MatrixFactorisation, add_summary, get_optimizer
-from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_train_spec
+from trainer.model_utils import MatrixFactorisation, add_summary, get_similarity, get_string_id_table
+from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_optimizer, get_train_spec
 from trainer.utils import file_lines
 
 
@@ -65,7 +64,7 @@ def model_fn(features, labels, mode, params):
 def main():
     params = parse_args()
     params["input_fn_args"].update({
-        "feature_names": params["row_col_names"] + [params["pos_name"], params["neg_name"]],
+        "feature_names": [params["row_name"], params["col_name"], params["pos_name"], params["neg_name"]],
         "target_names": [],
     })
     save_params(params)

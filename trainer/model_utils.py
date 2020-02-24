@@ -1,5 +1,9 @@
 import tensorflow as tf
 
+from trainer.config import VOCAB_TXT, TOP_K
+from trainer.data_utils import get_csv_dataset
+from trainer.utils import cosine_similarity
+
 
 def get_embedding_layer(vocab_size, embedding_size, l2_reg=0.01, name="embedding"):
     scaled_l2_reg = l2_reg / (vocab_size * embedding_size)
@@ -72,6 +76,33 @@ def get_named_variables(model):
     return variables
 
 
+def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
+    # variables
+    variables = get_named_variables(model)
+    embedding_layer = variables["row_embedding_layer"]
+    embeddings = embedding_layer.weights[0]
+    # [vocab_size, embedding_size]
+
+    # values
+    token_id = inputs[0]
+    # [None]
+    embed = embedding_layer(token_id)
+    # [None, embedding_size]
+    cosine_sim = cosine_similarity(embed, embeddings)
+    # [None, vocab_size]
+    top_k_sim, top_k_idx = tf.math.top_k(cosine_sim, k=top_k, name="top_k_sim")
+    # [None, top_k], [None, top_k]
+    id_string_table = get_id_string_table(vocab_txt)
+    top_k_string = id_string_table.lookup(tf.cast(top_k_idx, tf.int64), name="string_lookup")
+    # [None, top_k]
+    values = {
+        "embed:": embed,
+        "top_k_similarity": top_k_sim,
+        "top_k_string": top_k_string,
+    }
+    return values
+
+
 def add_summary(model):
     with tf.name_scope("mf"):
         variables = get_named_variables(model)
@@ -80,19 +111,31 @@ def add_summary(model):
         tf.compat.v1.summary.histogram("col_biases", variables["col_biases"])
 
 
-def get_loss_fn(loss_name, **kwargs):
-    loss_fn = tf.keras.losses.get({"class_name": loss_name, "config": kwargs})
-    return loss_fn
+def get_string_id_table(vocab_txt=VOCAB_TXT):
+    lookup_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
+        vocab_txt,
+        tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
+        tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
+    ), 0, name="string_id_table")
+    return lookup_table
 
 
-def get_optimizer(optimizer_name="Adam", **kwargs):
-    optimizer_config = {"class_name": optimizer_name, "config": kwargs}
-    optimizer = tf.keras.optimizers.get(optimizer_config)
-    return optimizer
+def get_id_string_table(vocab_txt=VOCAB_TXT):
+    lookup_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
+        vocab_txt,
+        tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER,
+        tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
+    ), "<UNK>", name="id_string_table")
+    return lookup_table
 
 
-def get_minimise_op(loss, optimizer, trainable_variables):
-    with tf.name_scope("train"):
-        optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
-        minimise_op = optimizer.get_updates(loss, trainable_variables)
-    return minimise_op
+def get_glove_dataset(vocab_txt=VOCAB_TXT, **kwargs):
+    string_id_table = get_string_id_table(vocab_txt)
+
+    def lookup(features, targets, weights):
+        features = {name: string_id_table.lookup(features[name], name=name + "_lookup")
+                    for name in kwargs["feature_names"]}
+        return features, targets, weights
+
+    dataset = get_csv_dataset(**kwargs).map(lookup, num_parallel_calls=-1)
+    return dataset

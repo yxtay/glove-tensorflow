@@ -11,6 +11,10 @@ update-requirements:
 install-requirements:
 	pip install -r requirements/main.txt -r requirements/dev.txt
 
+.PHONY: sync-requirements
+sync-requirements:
+	pip-sync requirements/main.txt requirements/dev.txt
+
 .PHONY: data
 data:
 	python -m src.data.text8

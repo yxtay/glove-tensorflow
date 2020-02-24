@@ -1,13 +1,12 @@
 import tensorflow as tf
 
 from trainer.config import parse_args
-from trainer.glove_utils import get_glove_dataset
-from trainer.model_utils import MatrixFactorisation, get_loss_fn, get_optimizer
-from trainer.train_utils import get_keras_callbacks
+from trainer.model_utils import MatrixFactorisation, get_glove_dataset
+from trainer.train_utils import get_keras_callbacks, get_loss_fn, get_optimizer
 from trainer.utils import file_lines
 
 
-def build_model(params):
+def build_compile_model(params):
     # init layers
     mf_layer = MatrixFactorisation(
         file_lines(params["vocab_txt"]),
@@ -20,16 +19,18 @@ def build_model(params):
     inputs = [tf.keras.Input((), name=name) for name in [params["row_name"], params["col_name"]]]
     glove_value = mf_layer(inputs)
     glove_model = tf.keras.Model(inputs, glove_value, name="glove_model")
+
+    # compile model
+    optimizer = get_optimizer(params["optimizer"], learning_rate=params["learning_rate"])
+    glove_model.compile(optimizer=optimizer, loss=get_loss_fn("MeanSquaredError"))
     return glove_model
 
 
 def main():
     params = parse_args()
 
-    # build model
-    model = build_model(params)
-    model.compile(optimizer=get_optimizer(params["optimizer"], learning_rate=params["learning_rate"]),
-                  loss=get_loss_fn("MeanSquaredError"))
+    # build & compile model
+    model = build_compile_model(params)
 
     # set up train, validation dataset
     train_dataset = get_glove_dataset(**params["dataset_args"], num_epochs=None)

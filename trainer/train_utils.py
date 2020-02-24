@@ -66,3 +66,21 @@ def get_keras_callbacks(job_dir, model_pattern="model_{epoch:06d}", log_csv="log
         tf.keras.callbacks.TerminateOnNaN(),
     ]
     return callbacks
+
+
+def get_loss_fn(loss_name, **kwargs):
+    loss_fn = tf.keras.losses.get({"class_name": loss_name, "config": kwargs})
+    return loss_fn
+
+
+def get_optimizer(optimizer_name="Adam", **kwargs):
+    optimizer_config = {"class_name": optimizer_name, "config": kwargs}
+    optimizer = tf.keras.optimizers.get(optimizer_config)
+    return optimizer
+
+
+def get_minimise_op(loss, optimizer, trainable_variables):
+    with tf.name_scope("train"):
+        optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
+        minimise_op = optimizer.get_updates(loss, trainable_variables)
+    return minimise_op

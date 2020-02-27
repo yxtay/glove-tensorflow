@@ -1,7 +1,6 @@
 import tensorflow as tf
 
 from trainer.config import VOCAB_TXT, TOP_K
-from trainer.data_utils import get_csv_dataset
 from trainer.utils import cosine_similarity
 
 
@@ -84,9 +83,9 @@ def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
     # [vocab_size, embedding_size]
 
     # values
-    token_id = inputs[0]
+    input_id = inputs[0]
     # [None]
-    embed = embedding_layer(token_id)
+    embed = embedding_layer(input_id)
     # [None, embedding_size]
     cosine_sim = cosine_similarity(embed, embeddings)
     # [None, vocab_size]
@@ -129,13 +128,3 @@ def get_id_string_table(vocab_txt=VOCAB_TXT):
     return lookup_table
 
 
-def get_glove_dataset(vocab_txt=VOCAB_TXT, **kwargs):
-    string_id_table = get_string_id_table(vocab_txt)
-
-    def lookup(features, targets, weights):
-        features = {name: string_id_table.lookup(features[name], name=name + "_lookup")
-                    for name in kwargs["feature_names"]}
-        return features, targets, weights
-
-    dataset = get_csv_dataset(**kwargs).map(lookup, num_parallel_calls=-1)
-    return dataset

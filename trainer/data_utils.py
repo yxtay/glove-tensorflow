@@ -69,8 +69,8 @@ def get_feature_columns(numeric_features=[], numeric_bucketised={},
     }
 
 
-def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=None,
-                    batch_size=32, num_epochs=1, compression_type=""):
+def get_csv_dataset(file_pattern, feature_names, target_names=[], weight_name=None,
+                    batch_size=32, num_epochs=1, **kwargs):
     def arrange_columns(features):
         targets = {col: features.pop(col) for col in target_names}
         output = features, targets
@@ -88,34 +88,33 @@ def get_csv_dataset(file_pattern, feature_names, target_names=(), weight_name=No
             batch_size=batch_size,
             select_columns=select_columns,
             num_epochs=num_epochs,
-            num_parallel_reads=-1,
+            num_parallel_reads=8,
             sloppy=True,  # improves performance, non-deterministic ordering
             num_rows_for_inference=100,  # if None, read all the rows
-            compression_type=compression_type,
+            **kwargs,
         )
         if len(target_names) > 0:
             dataset = dataset.map(arrange_columns, num_parallel_calls=-1)
     return dataset
 
 
-def get_csv_input_fn(file_pattern, feature_names, target_names=(),
-                     batch_size=32, num_epochs=1, compression_type=""):
+def get_csv_input_fn(file_pattern, select_columns=None, target_names=[],
+                     batch_size=32, num_epochs=1, **kwargs):
     def arrange_columns(features):
         targets = {col: features.pop(col) for col in target_names}
         return features, targets
 
     def input_fn():
-        select_columns = feature_names + target_names
         with tf.name_scope("input_fn"):
             dataset = tf.data.experimental.make_csv_dataset(
                 file_pattern=file_pattern,
                 batch_size=batch_size,
                 select_columns=select_columns,
                 num_epochs=num_epochs,
-                num_parallel_reads=-1,
+                num_parallel_reads=8,
                 sloppy=True,  # improves performance, non-deterministic ordering
                 num_rows_for_inference=100,  # if None, read all the rows
-                compression_type=compression_type,
+                **kwargs,
             )
             if len(target_names) > 0:
                 dataset = dataset.map(arrange_columns, num_parallel_calls=-1)

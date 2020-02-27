@@ -64,7 +64,7 @@ def model_fn(features, labels, mode, params):
 def main():
     params = parse_args()
     params["input_fn_args"].update({
-        "feature_names": [params["row_name"], params["col_name"], params["pos_name"], params["neg_name"]],
+        "select_columns": [params["row_name"], params["col_name"], params["pos_name"], params["neg_name"]],
         "target_names": [],
     })
     save_params(params)

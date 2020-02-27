@@ -44,7 +44,7 @@ def get_function_args(params):
         "input_fn_args": {
             "file_pattern": params["train_csv"],
             "batch_size": params["batch_size"],
-            "feature_names": [row_name, col_name, weight_name],
+            "select_columns": [row_name, col_name, weight_name, target_name],
             "target_names": [target_name],
         },
         "serving_input_fn_args": {

@@ -8,6 +8,7 @@ import tensorflow as tf
 
 TRAIN_CSV = "data/interaction.csv"
 VOCAB_TXT = "data/vocab.txt"
+JOB_DIR = "checkpoints/glove"
 EMBEDDING_SIZE = 64
 L2_REG = 0.01
 NEG_FACTOR = 1.
@@ -32,26 +33,27 @@ def get_function_args(params):
     col_name = params["col_name"]
     target_name = params["target_name"]
     weight_name = params["weight_name"]
-    args = {
-        "dataset_args": {
-            "vocab_txt": params["vocab_txt"],
-            "file_pattern": params["train_csv"],
-            "batch_size": params["batch_size"],
-            "feature_names": [row_name, col_name],
-            "target_names": [target_name],
-            "weight_name": weight_name,
-        },
-        "input_fn_args": {
-            "file_pattern": params["train_csv"],
-            "batch_size": params["batch_size"],
-            "select_columns": [row_name, col_name, weight_name, target_name],
-            "target_names": [target_name],
-        },
-        "serving_input_fn_args": {
-            "string_features": [row_name, col_name],
-        }
+    input_fn_args = {
+        "file_pattern": params["train_csv"],
+        "batch_size": params["batch_size"],
+        "select_columns": [row_name, col_name, weight_name, target_name],
+        "target_names": [target_name],
     }
-    return args
+    dataset_args = {
+        "row_col_names": [row_name, col_name],
+        "vocab_txt": params["vocab_txt"],
+        **input_fn_args,
+        "weight_names": [weight_name],
+    }
+    serving_input_fn_args = {
+        "string_features": [row_name, col_name],
+    }
+    function_args = {
+        "input_fn_args": input_fn_args,
+        "dataset_args": dataset_args,
+        "serving_input_fn_args": serving_input_fn_args,
+    }
+    return function_args
 
 
 def save_params(params, params_json="params.json"):
@@ -73,7 +75,7 @@ def init_params(params):
     tf.io.gfile.makedirs(params["job_dir"])
 
     # vocab_txt
-    output_vocab_txt = os.path.join(job_dir, os.path.basename(params["vocab_txt"]))
+    output_vocab_txt = os.path.join(params["job_dir"], os.path.basename(params["vocab_txt"]))
     tf.io.gfile.copy(params["vocab_txt"], output_vocab_txt, overwrite=True)
     params["vocab_txt"] = output_vocab_txt
 
@@ -126,7 +128,7 @@ def parse_args():
     )
     parser.add_argument(
         "--job-dir",
-        default="checkpoints/glove",
+        default=JOB_DIR,
         help="job directory (default: %(default)s)"
     )
     parser.add_argument(

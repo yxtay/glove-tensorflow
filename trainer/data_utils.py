@@ -81,7 +81,7 @@ def get_csv_input_fn(file_pattern, select_columns=None, target_names=[],
                 file_pattern=file_pattern,
                 batch_size=batch_size,
                 select_columns=select_columns,
-                num_epochs=num_epochs,
+                num_epochs=num_epochs,  # if None, repeat forever
                 num_parallel_reads=8,
                 sloppy=True,  # improves performance, non-deterministic ordering
                 num_rows_for_inference=100,  # if None, read all the rows

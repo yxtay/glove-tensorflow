@@ -75,27 +75,32 @@ def get_named_variables(model):
     return variables
 
 
-def get_similarity(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
-    # variables
-    variables = get_named_variables(model)
-    embedding_layer = variables["row_embedding_layer"]
-    embeddings = embedding_layer.weights[0]
-    # [vocab_size, embedding_size]
+def get_predictions(inputs, model, vocab_txt=VOCAB_TXT, top_k=TOP_K):
+    with tf.name_scope("predictions"):
+        id_string_table = get_id_string_table(vocab_txt)
+        # variables
+        variables = get_named_variables(model)
+        embedding_layer = variables["row_embedding_layer"]
+        embeddings = embedding_layer.weights[0]
+        # [vocab_size, embedding_size]
 
-    # values
-    input_id = inputs[0]
-    # [None]
-    embed = embedding_layer(input_id)
-    # [None, embedding_size]
-    cosine_sim = cosine_similarity(embed, embeddings)
-    # [None, vocab_size]
-    top_k_sim, top_k_idx = tf.math.top_k(cosine_sim, k=top_k, name="top_k_sim")
-    # [None, top_k], [None, top_k]
-    id_string_table = get_id_string_table(vocab_txt)
-    top_k_string = id_string_table.lookup(tf.cast(top_k_idx, tf.int64), name="string_lookup")
-    # [None, top_k]
+        # values
+        input_id = inputs[0]
+        # [None]
+        input_string = id_string_table.lookup(input_id, name="input_string_lookup")
+        # [None]
+        input_embedding = embedding_layer(input_id)
+        # [None, embedding_size]
+        cosine_sim = cosine_similarity(input_embedding, embeddings)
+        # [None, vocab_size]
+        top_k_sim, top_k_idx = tf.math.top_k(cosine_sim, k=top_k, name="top_k_sim")
+        # [None, top_k], [None, top_k]
+        id_string_table = get_id_string_table(vocab_txt)
+        top_k_string = id_string_table.lookup(tf.cast(top_k_idx, tf.int64), name="top_k_string_lookup")
+        # [None, top_k]
     values = {
-        "embed:": embed,
+        "input_string": input_string,
+        "input_embedding": input_embedding,
         "top_k_similarity": top_k_sim,
         "top_k_string": top_k_string,
     }

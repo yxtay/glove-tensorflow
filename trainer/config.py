@@ -64,9 +64,6 @@ def save_params(params, params_json="params.json"):
 
 
 def init_params(params):
-    # get function args
-    params.update(get_function_args(params))
-
     # job_dir
     if not params["disable_datetime_path"]:
         datetime_now = datetime.now()
@@ -78,6 +75,9 @@ def init_params(params):
     output_vocab_txt = os.path.join(params["job_dir"], os.path.basename(params["vocab_txt"]))
     tf.io.gfile.copy(params["vocab_txt"], output_vocab_txt, overwrite=True)
     params["vocab_txt"] = output_vocab_txt
+
+    # get function args
+    params.update(get_function_args(params))
 
     # save params
     save_params(params)

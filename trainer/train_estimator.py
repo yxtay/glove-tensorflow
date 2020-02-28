@@ -5,7 +5,7 @@ from trainer.config import (
     parse_args,
 )
 from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
-from trainer.model_utils import MatrixFactorisation, add_summary, get_similarity, get_string_id_table
+from trainer.model_utils import MatrixFactorisation, add_summary, get_predictions, get_string_id_table
 from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_optimizer, get_train_spec
 from trainer.utils import file_lines
 
@@ -35,7 +35,7 @@ def model_fn(features, labels, mode, params):
 
     # predict
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = get_similarity(inputs, model, vocab_txt, top_k)
+        predictions = get_predictions(inputs, model, vocab_txt, top_k)
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     # training
@@ -54,6 +54,21 @@ def model_fn(features, labels, mode, params):
         update_ops=model.get_updates_for(None) + model.get_updates_for(features),
         regularization_losses=model.get_losses_for(None) + model.get_losses_for(features),
     )
+
+
+def get_predict_input_fn(params):
+    row_name = params["row_name"]
+    col_name = params["col_name"]
+
+    def arrange_input(line):
+        return {row_name: line, col_name: line}
+
+    def input_fn():
+        dataset = tf.data.TextLineDataset(params["vocab_txt"])
+        dataset = dataset.map(arrange_input).batch(1)
+        return dataset
+
+    return input_fn
 
 
 def main():

@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import tensorflow as tf
 
 from trainer.logger import get_logger
-from trainer.train_estimator import get_predict_input_fn, model_fn
+from trainer.estimator import get_predict_input_fn, model_fn
 from trainer.train_utils import get_estimator
 
 logger = get_logger(__name__)

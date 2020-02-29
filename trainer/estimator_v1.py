@@ -142,25 +142,6 @@ def model_fn(features, labels, mode, params):
     )
 
 
-def get_predict_input_fn(params):
-    row_name = params["row_name"]
-    col_name = params["col_name"]
-    output_types = {row_name: tf.string, col_name: tf.string}
-
-    def input_generator():
-        with tf.io.gfile.GFile(params["vocab_txt"]) as f:
-            for line in f:
-                line = line.strip()
-                yield {row_name: line, col_name: line}
-
-    def input_fn():
-        dataset = tf.data.Dataset.from_generator(input_generator, output_types)
-        dataset = dataset.batch(1)
-        return dataset
-
-    return input_fn
-
-
 def main():
     params = parse_args()
 

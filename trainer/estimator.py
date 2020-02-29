@@ -57,15 +57,13 @@ def model_fn(features, labels, mode, params):
 
 
 def get_predict_input_fn(params):
-    row_name = params["row_name"]
-    col_name = params["col_name"]
-
     def arrange_input(line):
-        return {row_name: line, col_name: line}
+        return {name: line for name in [params["row_name"], params["col_name"]]}
 
     def input_fn():
         dataset = tf.data.TextLineDataset(params["vocab_txt"])
-        dataset = dataset.map(arrange_input).batch(1)
+        dataset = dataset.map(arrange_input)
+        dataset = dataset.batch(1)
         return dataset
 
     return input_fn

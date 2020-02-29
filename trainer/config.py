@@ -67,7 +67,7 @@ def init_params(params):
     # job_dir
     if not params["disable_datetime_path"]:
         datetime_now = datetime.now()
-        job_dir = "{job_dir}_{datetime:%Y%m%d_%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
+        job_dir = "{job_dir}-{datetime:%Y%m%d-%H%M%S}".format(job_dir=params["job_dir"], datetime=datetime_now)
         params["job_dir"] = job_dir
     tf.io.gfile.makedirs(params["job_dir"])
 

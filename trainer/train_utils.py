@@ -3,7 +3,6 @@ import os
 import tensorflow as tf
 
 EVAL_INTERVAL = 300
-EVAL_STEPS = None  # None, until OutOfRangeError from input_fn
 
 
 def get_loss_fn(loss_name, **kwargs):
@@ -24,11 +23,8 @@ def get_minimise_op(loss, optimizer, trainable_variables):
     return minimise_op
 
 
-def get_run_config(save_checkpoints_secs=EVAL_INTERVAL, keep_checkpoint_max=5):
-    return tf.estimator.RunConfig(
-        save_checkpoints_secs=min(save_checkpoints_secs, 300),
-        keep_checkpoint_max=keep_checkpoint_max
-    )
+def get_run_config(save_checkpoints_secs=EVAL_INTERVAL):
+    return tf.estimator.RunConfig(save_checkpoints_secs=min(save_checkpoints_secs, 300))
 
 
 def get_estimator(model_fn, params):
@@ -36,32 +32,25 @@ def get_estimator(model_fn, params):
         model_fn=model_fn,
         model_dir=params["job_dir"],
         config=get_run_config(),
-        params=params
+        params=params,
     )
 
 
 def get_train_spec(input_fn, train_steps):
-    return tf.estimator.TrainSpec(
-        input_fn=input_fn,
-        max_steps=train_steps
-    )
+    return tf.estimator.TrainSpec(input_fn=input_fn, max_steps=train_steps)
 
 
-def get_exporter(serving_input_fn, exports_to_keep=5):
-    return tf.estimator.LatestExporter(
-        name="exporter",
-        serving_input_receiver_fn=serving_input_fn,
-        exports_to_keep=exports_to_keep
-    )
+def get_exporter(serving_input_fn):
+    return tf.estimator.LatestExporter(name="exporter", serving_input_receiver_fn=serving_input_fn)
 
 
-def get_eval_spec(input_fn, exporter, steps=EVAL_STEPS, throttle_secs=EVAL_INTERVAL):
+def get_eval_spec(input_fn, exporter, throttle_secs=EVAL_INTERVAL):
     return tf.estimator.EvalSpec(
         input_fn=input_fn,
-        steps=steps,
+        steps=None,  # if None, until OutOfRangeError from input_fn
         exporters=exporter,
         start_delay_secs=min(throttle_secs, 120),
-        throttle_secs=throttle_secs
+        throttle_secs=throttle_secs,
     )
 
 

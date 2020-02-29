@@ -1,4 +1,7 @@
-JOB_DIR=checkpoints/glove
+CHECKPOINTS_DIR=checkpoints
+MODEL_NAME=glove
+TF_VERSION=2.1.0
+JOB_DIR=$(CHECKPOINTS_DIR)/$(MODEL_NAME)
 TRAIN_STEPS=16384
 
 .PHONY: update-requirements
@@ -28,35 +31,35 @@ docker-data:
 
 .PHONY: train-keras
 train-keras:
-	python -m trainer.train_keras --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
+	python -m trainer.keras --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
 
 .PHONY: train-estimator
 train-estimator:
-	python -m trainer.train_estimator --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
+	python -m trainer.estimator --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
 
 .PHONY: train-estimator-v1
 train-estimator-v1:
-	python -m trainer.train_estimator_v1 --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
+	python -m trainer.estimator_v1 --job-dir $(JOB_DIR) --train-steps $(TRAIN_STEPS)
 
 .PHONY: docker-train-estimator
 docker-train:
 	docker run --rm -w=/home \
 	  --mount type=bind,source=$(pwd),target=/home \
-	  tensorflow/tensorflow:2.1.0 \
+	  tensorflow/tensorflow:$(TF_VERSION) \
 	  python -m trainer.train_estimator \
 	  --job-dir $(JOB_DIR) \
 	  --train-steps $(TRAIN_STEPS)
 
 .PHONY: tensorboard
 tensorboard:
-	tensorboard --logdir checkpoints/
+	tensorboard --logdir $(CHECKPOINTS_DIR)
 
 .PHONY: docker-tensorboard
 docker-tensorboard:
 	docker run --rm -w=/home -p 6006:6006 \
 	  --mount type=bind,source=$(pwd),target=/home \
-	  tensorflow/tensorflow:2.1.0 \
-	  tensorboard --logdir checkpoints/
+	  tensorflow/tensorflow:$(TF_VERSION) \
+	  tensorboard --logdir $(CHECKPOINTS_DIR)
 
 .PHONY: saved-model-cli
 saved-model-cli:
@@ -65,13 +68,13 @@ saved-model-cli:
 .PHONY: serving
 serving:
 	docker run --rm -p 8500:8500 -p 8501:8501 \
-	  --mount type=bind,source=$(shell pwd)/$(JOB_DIR)/export/exporter,target=/models/glove \
-	  -e MODEL_NAME=glove -t tensorflow/serving:2.1.0
+	  --mount type=bind,source=$(shell pwd)/$(JOB_DIR)/export/exporter,target=/models/$(MODEL_NAME) \
+	  -e MODEL_NAME=$(MODEL_NAME) -t tensorflow/serving:$(TF_VERSION)
 
 .PHONY: query
 query:
 	curl -X POST \
-	  http://localhost:8501/v1/models/glove:predict \
+	  http://localhost:8501/v1/models/$(MODEL_NAME):predict \
 	  -d '{"instances": [{"row_token": "man", "col_token": "man"}]}'
 
 .PHONY: embeddings

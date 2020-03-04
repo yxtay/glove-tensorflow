@@ -5,3 +5,4 @@ jupyterlab
 pre-commit
 pytest
 pytest-cov
+tabulate

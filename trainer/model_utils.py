@@ -1,22 +1,22 @@
 import tensorflow as tf
 
-from trainer.config import VOCAB_TXT, TOP_K
+from trainer.config import VOCAB_TXT, TOP_K, EMBEDDING_SIZE, L2_REG
 from trainer.utils import cosine_similarity
 
 
-def get_embedding_layer(vocab_size, embedding_size, l2_reg=0.01, name="embedding"):
-    scaled_l2_reg = l2_reg / (vocab_size * embedding_size)
+def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, name="embedding"):
+    scaled_l2_reg = l2_reg / embedding_size
     regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=scaled_l2_reg)
     embedding_layer = tf.keras.layers.Embedding(
         vocab_size, embedding_size,
-        embeddings_regularizer=regularizer,
+        activity_regularizer=regularizer,
         name=name
     )
     return embedding_layer
 
 
 class MatrixFactorisation(tf.keras.layers.Layer):
-    def __init__(self, vocab_size, embedding_size, l2_reg=0.01, name="matrix_factorisation", **kwargs):
+    def __init__(self, vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, name="matrix_factorisation", **kwargs):
         super(MatrixFactorisation, self).__init__(name=name, **kwargs)
         self.vocab_size = vocab_size
         self.embedding_size = embedding_size
@@ -29,12 +29,9 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         self.col_embeddings = get_embedding_layer(self.vocab_size, self.embedding_size, self.l2_reg, "col_embedding")
         self.col_biases = get_embedding_layer(self.vocab_size, 1, self.l2_reg, "col_bias")
 
+        # regularizer for global bias is equivalent to activity regularizer for embedding layers
         regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=self.l2_reg)
-        self.global_bias = self.add_weight(
-            name="global_bias",
-            initializer="zeros",
-            regularizer=regularizer,
-        )
+        self.global_bias = self.add_weight(name="global_bias", initializer="zeros", regularizer=regularizer)
 
     def call(self, inputs):
         row_id, col_id = inputs
@@ -51,12 +48,12 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         return logits
 
     def get_config(self):
-        config = super(MatrixFactorisation, self).get_config()
-        config.update({
+        config = {
             "vocab_size": self.vocab_size,
             "embedding_size": self.embedding_size,
             "l2_reg": self.l2_reg,
-        })
+        }
+        config.update(super(MatrixFactorisation, self).get_config())
         return config
 
 

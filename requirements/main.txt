@@ -21,7 +21,7 @@ keras-preprocessing==1.1.0  # via tensorflow
 markdown==3.2.1           # via tensorboard
 numpy==1.18.1             # via h5py, keras-applications, keras-preprocessing, opt-einsum, pandas, scipy, tensorboard, tensorflow
 oauthlib==3.1.0           # via requests-oauthlib
-opt-einsum==3.1.0         # via tensorflow
+opt-einsum==3.2.0         # via tensorflow
 pandas==1.0.1             # via -r requirements/main.in
 protobuf==3.11.3          # via tensorboard, tensorflow
 pyasn1-modules==0.2.8     # via google-auth
@@ -34,7 +34,7 @@ requests==2.22.0          # via -r requirements/main.in, requests-oauthlib, tens
 rsa==4.0                  # via google-auth
 scipy==1.4.1              # via tensorflow
 six==1.14.0               # via absl-py, google-auth, google-pasta, grpcio, h5py, keras-preprocessing, protobuf, python-dateutil, tensorboard, tensorflow
-tensorboard==2.1.0        # via tensorflow
+tensorboard==2.1.1        # via tensorflow
 tensorflow-estimator==2.1.0  # via tensorflow
 tensorflow==2.1.0         # via -r requirements/main.in
 termcolor==1.1.0          # via tensorflow

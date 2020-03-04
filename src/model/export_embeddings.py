@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 
 import tensorflow as tf
 
-from trainer.logger import get_logger
+from src.logger import get_logger
 from trainer.estimator import get_predict_input_fn, model_fn
 from trainer.train_utils import get_estimator
 
@@ -15,14 +15,14 @@ logger = get_logger(__name__)
 def load_json(json_path):
     with tf.io.gfile.GFile(json_path) as f:
         json_obj = json.load(f)
-    logger.info("json loaded", extra={"path": json_path})
+    logger.info("json loaded: %s.", json_path)
     return json_obj
 
 
 def save_json(json_obj, json_path):
     with tf.io.gfile.GFile(json_path, "w") as f:
         json.dump(json_obj, f, indent=2)
-    logger.info("json saved", extra={"path": json_path})
+    logger.info("json saved: %s.", json_path)
     return json_path
 
 

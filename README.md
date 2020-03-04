@@ -7,14 +7,18 @@ The trainer module in this repository also allows for distributed model training
 ## Setup
 
 ```bash
+ENV_NAME=glove-tensorflow
+
 # clone repo
 git clone git@github.com:yxtay/glove-tensorflow.git && cd recommender-tensorflow
 
-# create conda environment
-conda env create -f=environment.yml
+# create and activate conda environment
+conda env create -n ${ENV_NAME} -y python=3.7
+conda activate ${ENV_NAME}
 
-# activate environment
-source activate dl
+# install requirements
+# make install-requirments
+pip install -r requirements/main.txt -r requirements/dev.txt
 ```
 
 You may also use accompanying docker commands to avoid environment setup.
@@ -25,31 +29,34 @@ The [text8 dataset](http://mattmahoney.net/dc/textdata.html) is used for demonst
 The following script downloads the data, processes it to prepare the vocabulary and cooccurrence matrix. The data is serialised to `csv`.
 
 ```bash
+# make data
 python -m src.data.text8
 ```
 
 **With Docker**
 
 ```bash
+# make docker-data
 docker run --rm -w=/home \
   --mount type=bind,source=$(pwd),target=/home \
-  continuumio/anaconda3:5.3.0 \
+  continuumio/anaconda3:2019.10 \
   python -m src.data.text8
 ```
 
 **Sample data**
 
-| row_token_id | column_token_id | count | value   | row_token    | column_token | glove_weight | glove_value | 
-|--------------|-----------------|-------|---------|--------------|--------------|--------------|-------------| 
-| 614          | 848             | 16    | 12.6499 | irish        | origin       | 0.2529       | 2.5376      | 
-| 113          | 1133            | 27    | 11.1333 | number       | places       | 0.3745       | 2.4099      | 
-| 4501         | 2158            | 12    |  3.6833 | discrete     | continuous   | 0.2038       | 1.3038      | 
-| 6007         | 1               | 110   | 51.5166 | videos       | the          | 1.0000       | 3.9419      | 
-| 153          | 65              | 57    | 19.0500 | general      | time         | 0.6560       | 2.9470      | 
-| 2978         | 642             | 12    |  6.1166 | consumer     | food         | 0.2038       | 1.8110      | 
-| 2156         | 59              | 41    | 19.4000 | historically | used         | 0.5123       | 2.9652      | 
-| 3166         | 45              | 23    | 16.3666 | collapse     | its          | 0.3321       | 2.7952      | 
-| 445          | 100             | 32    | 14.2333 | center       | where        | 0.4254       | 2.6555      | 
+|   row_token_id |   col_token_id |   count |    value | row_token   | col_token   |   neg_weight |   glove_weight |   glove_value |
+|---------------:|---------------:|--------:|---------:|:------------|:------------|-------------:|---------------:|--------------:|
+|           6125 |             38 |      24 |  16.9500 | altogether  | not         |    0.6421    |       0.3428   |       2.83027 |
+|             18 |           1571 |     176 |  74.1000 | was         | prominent   |    7.5889    |       1.0000   |       4.30542 |
+|             91 |            372 |      19 |   5.4500 | th          | society     |    3.1999    |       0.2877   |       1.69562 |
+|            432 |            541 |      12 |   5.9000 | numbers     | note        |    0.6461    |       0.2038   |       1.77495 |
+|           1304 |            285 |      25 |  11.1667 | na          | europe      |    0.4112    |       0.3535   |       2.41293 |
+|             32 |             18 |    2312 | 723.2000 | be          | was         |  406.5180    |       1.0000   |       6.58369 |
+|           2247 |           1154 |     136 |  46.5833 | html        | www         |    0.0740    |       1.0000   |       3.84124 |
+|            710 |            229 |      18 |   9.0500 | cannot      | point       |    0.8569    |       0.2763   |       2.20276 |
+|            467 |           3756 |      12 |   5.2000 | style       | width       |    0.0911    |       0.2038   |       1.64866 |
+|             80 |            543 |      35 |  20.6333 | over        | lost        |    2.6989    |       0.4550   |       3.02691 | 
 
 **Usage**
 
@@ -78,43 +85,86 @@ optional arguments:
 
 ## Train GloVe
 
+### Estimator
+
 ```bash
-python -m trainer.glove
+# make train
+python -m trainer.estimator
 ```
 
 **With Docker**
 
 ```bash
+# make docker-train
 docker run --rm -w=/home \
   --mount type=bind,source=$(pwd),target=/home \
-  tensorflow/tensorflow:1.13.1-py3 \
-  python -m trainer.glove
+  tensorflow/tensorflow:2.1.0-py3 \
+  python -m trainer.estimator
 ```
 
 **Usage**
 
 ```
-usage: glove.py [-h] [--train-csv TRAIN_CSV] [--vocab-json VOCAB_JSON]
-                [--job-dir JOB_DIR] [--restore]
-                [--embedding-size EMBEDDING_SIZE] [--k K]
-                [--batch-size BATCH_SIZE] [--train-steps TRAIN_STEPS]
+usage: estimator.py [-h] [--train-csv TRAIN_CSV] [--vocab-txt VOCAB_TXT]
+                    [--row-name ROW_NAME] [--col-name COL_NAME]
+                    [--target-name TARGET_NAME] [--weight-name WEIGHT_NAME]
+                    [--pos-name POS_NAME] [--neg-name NEG_NAME]
+                    [--job-dir JOB_DIR] [--disable-datetime-path]
+                    [--embedding-size EMBEDDING_SIZE] [--l2-reg L2_REG]
+                    [--neg-factor NEG_FACTOR] [--optimizer OPTIMIZER]
+                    [--learning-rate LEARNING_RATE] [--batch-size BATCH_SIZE]
+                    [--train-steps TRAIN_STEPS]
+                    [--steps-per-epoch STEPS_PER_EPOCH] [--top-k TOP_K]
 
 optional arguments:
   -h, --help            show this help message and exit
   --train-csv TRAIN_CSV
                         path to the training csv data (default:
                         data/interaction.csv)
-  --vocab-json VOCAB_JSON
-                        path to the vocab json (default: data/vocab.json)
+  --vocab-txt VOCAB_TXT
+                        path to the vocab txt (default: data/vocab.txt)
+  --row-name ROW_NAME   row id name (default: row_token)
+  --col-name COL_NAME   column id name (default: col_token)
+  --target-name TARGET_NAME
+                        target name (default: glove_value)
+  --weight-name WEIGHT_NAME
+                        weight name (default: glove_weight)
+  --pos-name POS_NAME   positive name (default: value)
+  --neg-name NEG_NAME   negative name (default: neg_weight)
   --job-dir JOB_DIR     job directory (default: checkpoints/glove)
-  --restore             whether to restore from JOB_DIR
+  --disable-datetime-path
+                        flag whether to disable appending datetime in job_dir
+                        path (default: False)
   --embedding-size EMBEDDING_SIZE
                         embedding size (default: 64)
-  --k K                 k for top k similarity (default: 100)
+  --l2-reg L2_REG       scale of l2 regularisation (default: 0.01)
+  --neg-factor NEG_FACTOR
+                        negative loss factor (default: 1.0)
+  --optimizer OPTIMIZER
+                        name of optimzer (default: Adam)
+  --learning-rate LEARNING_RATE
+                        learning rate (default: 0.001)
   --batch-size BATCH_SIZE
                         batch size (default: 1024)
   --train-steps TRAIN_STEPS
                         number of training steps (default: 16384)
+  --steps-per-epoch STEPS_PER_EPOCH
+                        number of steps per checkpoint (default: 16384)
+  --top-k TOP_K         number of similar items (default: 20)
+```
+
+### Keras
+
+```bash
+# make train-keras
+python -m trainer.keras
+```
+
+### Logistic Matrix Factorisation
+
+```bash
+# make train-logistic-mf
+python -m trainer.logistic_matrix_factorisation
 ```
 
 ## Tensorboard
@@ -122,16 +172,22 @@ optional arguments:
 You may inspect model training metrics with Tensorboard.
 
 ```bash
-tensorboard --logdir checkpoints/
+# make tensorboard
+CHECKPOINTS_DIR=checkpoints
+
+tensorboard --logdir ${CHECKPOINTS_DIR}
 ```
 
 **With Docker**
 
 ```bash
+# make docker-tensorboard
+CHECKPOINTS_DIR=checkpoints
+
 docker run --rm -w=/home -p 6006:6006 \
   --mount type=bind,source=$(pwd),target=/home \
-  tensorflow/tensorflow:1.13.1-py3 \
-  tensorboard --logdir checkpoints/
+  tensorflow/tensorflow:2.1.0-py3 \
+  tensorboard --logdir ${CHECKPOINTS_DIR}
 ```
 
 Access [Tensorboard](http://localhost:6006/) on your browser
@@ -141,19 +197,22 @@ Access [Tensorboard](http://localhost:6006/) on your browser
 The trained and serialised model may be served with TensorFlow Serving.
 
 ```bash
-CHECKPOINT_PATH=checkpoints/glove/export/exporter
+# make serving
+JOB_DIR=checkpoints/glove_estimator
+MODEL_NAME=glove
 
 docker run --rm -p 8500:8500 -p 8501:8501 \
-  --mount type=bind,source=$(pwd)/${CHECKPOINT_PATH},target=/models/glove \
-  -e MODEL_NAME=glove -t tensorflow/serving:1.13.1
+  --mount type=bind,source=$(pwd)/${JOB_DIR}/export/exporter,target=/models/${MODEL_NAME} \
+  -e MODEL_NAME=${MODEL_NAME} -t tensorflow/serving:2.1.0
 ```
 
 **Model signature**
 
 ```bash
-CHECKPOINT_PATH=checkpoints/glove/export/exporter/1556612325/
+# make saved-model-cli JOB_DIR=checkpoints/glove_estimator/export/exporter/1582880583
+JOB_DIR=checkpoints/glove_estimator/export/exporter/1582880583
 
-saved_model_cli show --all --dir ${CHECKPOINT_PATH}
+saved_model_cli show --all --dir ${JOB_DIR}
 ```
 
 ```
@@ -170,54 +229,22 @@ signature_def['serving_default']:
         shape: (-1)
         name: row_token:0
   The given SavedModel SignatureDef contains the following output(s):
-    outputs['col_bias'] tensor_info:
-        dtype: DT_FLOAT
-        shape: (-1)
-        name: mf/col_token/col_token_bias_lookup/Identity:0
-    outputs['col_embed'] tensor_info:
+    outputs['input_embedding'] tensor_info:
         dtype: DT_FLOAT
         shape: (-1, 64)
-        name: mf/col_token/col_token_embed_lookup/Identity:0
-    outputs['col_id'] tensor_info:
+        name: predictions/row_embedding/embedding_lookup/Identity_1:0
+    outputs['input_string'] tensor_info:
         dtype: DT_STRING
         shape: (-1)
-        name: mf/col_token/Identity:0
-    outputs['embed_norm_product'] tensor_info:
+        name: predictions/input_string_lookup/LookupTableFindV2:0
+    outputs['top_k_similarity'] tensor_info:
         dtype: DT_FLOAT
-        shape: (-1)
-        name: similarity/Sum:0
-    outputs['predicted_value'] tensor_info:
-        dtype: DT_FLOAT
-        shape: (-1)
-        name: mf/AddN:0
-    outputs['row_bias'] tensor_info:
-        dtype: DT_FLOAT
-        shape: (-1)
-        name: mf/row_token/row_token_bias_lookup/Identity:0
-    outputs['row_embed'] tensor_info:
-        dtype: DT_FLOAT
-        shape: (-1, 64)
-        name: mf/row_token/row_token_embed_lookup/Identity:0
-    outputs['row_id'] tensor_info:
+        shape: (-1, 20)
+        name: predictions/top_k_sim:0
+    outputs['top_k_string'] tensor_info:
         dtype: DT_STRING
-        shape: (-1)
-        name: mf/row_token/Identity:0
-    outputs['top_k_col_similarity'] tensor_info:
-        dtype: DT_FLOAT
-        shape: (-1, 100)
-        name: similarity/col_token/top_k_sim_col_token:0
-    outputs['top_k_col_string'] tensor_info:
-        dtype: DT_STRING
-        shape: (-1, 100)
-        name: similarity/col_token/col_token_string_lookup_Lookup:0
-    outputs['top_k_row_similarity'] tensor_info:
-        dtype: DT_FLOAT
-        shape: (-1, 100)
-        name: similarity/row_token/top_k_sim_row_token:0
-    outputs['top_k_row_string'] tensor_info:
-        dtype: DT_STRING
-        shape: (-1, 100)
-        name: similarity/row_token/row_token_string_lookup_Lookup:0
+        shape: (-1, 20)
+        name: predictions/top_k_string_lookup/LookupTableFindV2:0
   Method name is: tensorflow/serving/predict
 ```
 
@@ -226,8 +253,11 @@ Once served, you may query the model with the following command.
 Sample request
 
 ```bash
+# make query
+MODEL_NAME=glove
+
 curl -X POST \
-  http://localhost:8501/v1/models/glove:predict \
+  http://localhost:8501/v1/models/${MODEL_NAME}:predict \
   -d '{"instances": [{"row_token": "man", "col_token": "man"}]}'
 ```
 
@@ -235,93 +265,52 @@ Sample response
 
 ```
 {
-    "predictions": [
-        {
-            
-            "top_k_row_string": [
-                "man",
-                "woman",
-                "person",
-                "men",
-                "women",
-                "children",
-                "girl",
-                "son",
-                "father",
-                "god",
-                ...
-            ],
-            "top_k_row_similarity": [
-                1,
-                0.730189,
-                0.644536,
-                0.614566,
-                0.558976,
-                0.553486,
-                0.550555,
-                0.533169,
-                0.521285,
-                0.518982,
-                ...
-            ],
-            "row_embed": [
-                -0.0735308,
-                0.14473,
-                0.587398,
-                0.354783,
-                0.148979,
-                0.302668,
-                -0.410081,
-                -0.158809,
-                0.0883906,
-                0.0459743,
-                ...
-            ],
-            "row_bias": 0.189876,
-            "top_k_col_string": [
-                "man",
-                "woman",
-                "person",
-                "child",
-                "men",
-                "love",
-                "girl",
-                "son",
-                "shot",
-                "god",
-                ...
-            ],
-            "top_k_col_similarity": [
-                1,
-                0.691862,
-                0.648038,
-                0.590263,
-                0.554949,
-                0.550537,
-                0.536444,
-                0.533546,
-                0.528475,
-                0.522893,
-                ...
-            ],
-            "col_embed": [
-                0.24108,
-                0.184525,
-                0.557452,
-                0.501938,
-                -0.263059,
-                0.214702,
-                -0.60232,
-                0.299381,
-                -0.241118,
-                0.0867298,
-                ...
-            ],
-            "col_bias": 0.218183,
-            "embed_norm_product": 0.362292
-        }
-    ]
+  "predictions": [
+    {
+      "input_embedding": [
+        -0.300508708,
+        0.0379304029,
+        -0.230785236,
+        -0.0134698749,
+        -0.228297591,
+        0.336529136,
+        -0.404365033,
+        -0.0260110013,
+        -0.0601181835,
+        -0.0768373162,
+        ...
+      ],
+      "input_string": "man",
+      "top_k_similarity": [
+        1.0,
+        0.739075899,
+        0.731139,
+        0.725150704,
+        0.719715357,
+        0.716650367,
+        0.712861955,
+        0.7121948,
+        0.702044725,
+        0.701966524,
+        ...
+      ],
+      "top_k_string": [
+        "man",
+        "god",
+        "person",
+        "young",
+        "idea",
+        "son",
+        "himself",
+        "child",
+        "israel",
+        "father",
+        ...
+      ]
+    }
+  ]
 }
+
 ```
 
 ## Distributed

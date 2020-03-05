@@ -15,6 +15,12 @@ def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG
     return embedding_layer
 
 
+def compute_activity_loss(tensor, regularizer):
+    batch_activty_loss = regularizer(tensor)
+    mean_activity_loss = batch_activty_loss / tf.cast(tf.shape(tensor)[0], batch_activty_loss.dtype)
+    return mean_activity_loss
+
+
 class MatrixFactorisation(tf.keras.layers.Layer):
     def __init__(self, vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, name="matrix_factorisation", **kwargs):
         super(MatrixFactorisation, self).__init__(name=name, **kwargs)
@@ -29,9 +35,8 @@ class MatrixFactorisation(tf.keras.layers.Layer):
         self.col_embeddings = get_embedding_layer(self.vocab_size, self.embedding_size, self.l2_reg, "col_embedding")
         self.col_biases = get_embedding_layer(self.vocab_size, 1, self.l2_reg, "col_bias")
 
-        # regularizer for global bias is equivalent to activity regularizer for embedding layers
-        regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=self.l2_reg)
-        self.global_bias = self.add_weight(name="global_bias", initializer="zeros", regularizer=regularizer)
+        self.regularizer = tf.keras.regularizers.l1_l2(l1=0, l2=self.l2_reg)
+        self.global_bias = self.add_weight(name="global_bias", initializer="zeros")
 
     def call(self, inputs):
         row_id, col_id = inputs
@@ -44,6 +49,7 @@ class MatrixFactorisation(tf.keras.layers.Layer):
 
         embed_product = tf.keras.layers.dot([row_embed, col_embed], axes=-1, name="embed_product")
         global_bias = tf.ones_like(embed_product) * self.global_bias
+        self.add_loss(compute_activity_loss(global_bias, self.regularizer))
         logits = tf.keras.layers.Add(name="logits")([embed_product, row_bias, col_bias, global_bias])
         return logits
 

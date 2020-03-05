@@ -1,5 +1,6 @@
 # configs
 import json
+import logging
 import os
 from argparse import ArgumentParser
 from datetime import datetime
@@ -191,4 +192,5 @@ def parse_args():
     )
     args = parser.parse_args()
     params = init_params(args.__dict__)
+    tf.get_logger().setLevel(logging.ERROR)
     return params

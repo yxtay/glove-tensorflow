@@ -69,6 +69,13 @@ def get_predict_input_fn(params):
     return input_fn
 
 
+def estimator_predict(params):
+    estimator = get_estimator(model_fn, params)
+    predict_input_fn = get_predict_input_fn(params)
+    predictions = estimator.predict(predict_input_fn)
+    return predictions
+
+
 def main():
     params = parse_args()
 

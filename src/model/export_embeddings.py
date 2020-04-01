@@ -6,8 +6,7 @@ from argparse import ArgumentParser
 import tensorflow as tf
 
 from src.logger import get_logger
-from trainer.estimator import get_predict_input_fn, model_fn
-from trainer.train_utils import get_estimator
+from trainer.estimator import estimator_predict
 
 logger = get_logger(__name__)
 
@@ -42,6 +41,19 @@ def format_predictions(predictions):
     return embeddings
 
 
+def main(job_dir, embeddings_json):
+    # load params
+    params_json = os.path.join(job_dir, "params.json")
+    params = load_json(params_json)
+
+    # get predictions
+    predictions = estimator_predict(params)
+    embeddings = format_predictions(predictions)
+
+    # save predictions
+    save_json(embeddings, embeddings_json)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
@@ -59,24 +71,7 @@ if __name__ == "__main__":
     logger.info("ArgumentParser: %s.", args)
 
     try:
-        job_dir = args.job_dir
-        embeddings_json = args.embeddings_json
-
-        # load params
-        params_json = os.path.join(job_dir, "params.json")
-        params = load_json(params_json)
-
-        # estimator
-        estimator = get_estimator(model_fn, params)
-
-        # get predictions
-        predict_input_fn = get_predict_input_fn(params)
-        predictions = estimator.predict(predict_input_fn)
-        embeddings = format_predictions(predictions)
-
-        # save predictions
-        save_json(embeddings, embeddings_json)
-
+        main(**args.__dict__)
     except KeyboardInterrupt:
         pass
     except Exception as e:

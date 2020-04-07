@@ -1,20 +1,16 @@
-CHECKPOINTS_DIR=checkpoints
-MODEL_NAME=glove
-JOB_DIR=$(CHECKPOINTS_DIR)/$(MODEL_NAME)
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rules
+SHELL := bash
+.ONESHELL:
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := all
+.DELETE_ON_ERROR:
+.SUFFIXES:
 
-.PHONY: update-requirements
-update-requirements:
-	pip install --upgrade pip setuptools pip-tools
-	pip-compile --upgrade --build-isolation --output-file requirements/main.txt requirements/main.in
-	pip-compile --upgrade --build-isolation --output-file requirements/dev.txt requirements/dev.in
-
-.PHONY: install-requirements
-install-requirements:
-	pip install -r requirements/main.txt -r requirements/dev.txt
-
-.PHONY: sync-requirements
-sync-requirements:
-	pip-sync requirements/main.txt requirements/dev.txt
+CHECKPOINTS_DIR = checkpoints
+MODEL_NAME = estimator
+JOB_DIR = $(CHECKPOINTS_DIR)/$(subst _,-,$(MODEL_NAME))
+ARGS ?=
 
 .PHONY: data
 data:
@@ -29,19 +25,7 @@ docker-data:
 
 .PHONY: train
 train:
-	python -m trainer.estimator \
-		--job-dir $(JOB_DIR) \
-		$(ARGS)
-
-.PHONY: train-keras
-train-keras:
-	python -m trainer.keras \
-		--job-dir $(JOB_DIR) \
-		$(ARGS)
-
-.PHONY: train-logistic-mf
-train-logistic-mf:
-	python -m trainer.logistic_matrix_factorisation \
+	python -m src.models.$(MODEL_NAME) \
 		--job-dir $(JOB_DIR) \
 		$(ARGS)
 
@@ -50,7 +34,7 @@ docker-train:
 	docker run --rm -w=/home \
 	  --mount type=bind,source=$(shell pwd),target=/home \
 	  tensorflow/tensorflow:2.1.0-py3 \
-	  python -m trainer.estimator \
+	  python -m src.models.$(MODEL_NAME) \
 	  --job-dir $(JOB_DIR) \
 	  $(ARGS)
 
@@ -85,3 +69,20 @@ query:
 .PHONY: embeddings
 embeddings:
 	python -m src.model.export_embeddings --job-dir $(JOB_DIR)
+
+.PHONY: all
+all: data train
+
+.PHONY: update-requirements
+update-requirements:
+	pip install --upgrade pip setuptools pip-tools
+	pip-compile --upgrade --build-isolation --output-file requirements/main.txt requirements/main.in
+	pip-compile --upgrade --build-isolation --output-file requirements/dev.txt requirements/dev.in
+
+.PHONY: install-requirements
+install-requirements:
+	pip install -r requirements/main.txt -r requirements/dev.txt
+
+.PHONY: sync-requirements
+sync-requirements:
+	pip-sync requirements/main.txt requirements/dev.txt

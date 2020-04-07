@@ -156,14 +156,14 @@ optional arguments:
 ### Keras
 
 ```bash
-# make train-keras
+# make train MODEL_NAME=keras
 python -m trainer.keras
 ```
 
 ### Logistic Matrix Factorisation
 
 ```bash
-# make train-logistic-mf
+# make train MODEL_NAME=logistic_matrix_factorisation
 python -m trainer.logistic_matrix_factorisation
 ```
 
@@ -197,7 +197,7 @@ Access [Tensorboard](http://localhost:6006/) on your browser
 The trained and serialised model may be served with TensorFlow Serving.
 
 ```bash
-# make serving
+# make serving MODEL_NAME=glove
 JOB_DIR=checkpoints/glove_estimator
 MODEL_NAME=glove
 
@@ -253,7 +253,7 @@ Once served, you may query the model with the following command.
 Sample request
 
 ```bash
-# make query
+# make query MODEL_NAME=glove
 MODEL_NAME=glove
 
 curl -X POST \

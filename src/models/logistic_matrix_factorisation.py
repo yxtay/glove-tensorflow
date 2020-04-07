@@ -1,23 +1,24 @@
 import tensorflow as tf
 
-from trainer.config import (
-    COL_NAME, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_NAME, TARGET_NAME, TOP_K, VOCAB_TXT, WEIGHT_NAME,
-    parse_args,
+from src.models.config_utils import (
+    COL_NAME, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, NEG_FACTOR, NEG_NAME, OPTIMIZER, POS_NAME, ROW_NAME, TOP_K,
+    VOCAB_TXT, parse_args, save_params,
 )
-from trainer.data_utils import get_csv_input_fn, get_serving_input_fn
-from trainer.model_utils import MatrixFactorisation, add_summary, get_predictions, get_string_id_table
-from trainer.train_utils import get_estimator, get_eval_spec, get_exporter, get_optimizer, get_train_spec
-from trainer.utils import file_lines
+from src.models.data_utils import get_csv_input_fn, get_serving_input_fn
+from src.models.model_utils import MatrixFactorisation, add_summary, get_predictions, get_string_id_table
+from src.models.train_utils import get_estimator, get_eval_spec, get_exporter, get_optimizer, get_train_spec
+from src.models.utils import file_lines
 
 
 def model_fn(features, labels, mode, params):
     row_name = params.get("row_name", ROW_NAME)
     col_name = params.get("col_name", COL_NAME)
-    target_name = params.get("target_name", TARGET_NAME)
-    weight_name = params.get("weight_name", WEIGHT_NAME)
+    pos_name = params.get("pos_name", POS_NAME)
+    neg_name = params.get("neg_name", NEG_NAME)
     vocab_txt = params.get("vocab_txt", VOCAB_TXT)
     embedding_size = params.get("embedding_size", EMBEDDING_SIZE)
     l2_reg = params.get("l2_reg", L2_REG)
+    neg_factor = params.get("neg_factor", NEG_FACTOR)
     optimizer_name = params.get("optimizer", OPTIMIZER)
     learning_rate = params.get("learning_rate", LEARNING_RATE)
     top_k = params.get("top_k", TOP_K)
@@ -45,10 +46,14 @@ def model_fn(features, labels, mode, params):
         optimizer.iterations = tf.compat.v1.train.get_or_create_global_step()
 
     # head
-    head = tf.estimator.RegressionHead(weight_column=weight_name)
+    labels = {"pos": tf.ones_like(logits), "neg": tf.zeros_like(logits)}
+    logits = {"pos": logits, "neg": logits}
+    pos_head = tf.estimator.BinaryClassHead(weight_column=pos_name, name="pos")
+    neg_head = tf.estimator.BinaryClassHead(weight_column=neg_name, name="neg")
+    head = tf.estimator.MultiHead([pos_head, neg_head], [1, neg_factor])
     return head.create_estimator_spec(
         features, mode, logits,
-        labels=labels[target_name],
+        labels=labels,
         optimizer=optimizer,
         trainable_variables=model.trainable_variables,
         update_ops=model.get_updates_for(None) + model.get_updates_for(features),
@@ -56,28 +61,13 @@ def model_fn(features, labels, mode, params):
     )
 
 
-def get_predict_input_fn(params):
-    def arrange_input(line):
-        return {name: line for name in [params["row_name"], params["col_name"]]}
-
-    def input_fn():
-        dataset = tf.data.TextLineDataset(params["vocab_txt"])
-        dataset = dataset.map(arrange_input)
-        dataset = dataset.batch(1)
-        return dataset
-
-    return input_fn
-
-
-def estimator_predict(params):
-    estimator = get_estimator(model_fn, params)
-    predict_input_fn = get_predict_input_fn(params)
-    predictions = estimator.predict(predict_input_fn)
-    return predictions
-
-
 def main():
     params = parse_args()
+    params["input_fn_args"].update({
+        "select_columns": [params["row_name"], params["col_name"], params["pos_name"], params["neg_name"]],
+        "target_names": [],
+    })
+    save_params(params)
 
     # estimator
     estimator = get_estimator(model_fn, params)

@@ -127,7 +127,7 @@ def create_interaction_dataframe(text_tokens, df_vocab, context_size=5):
 
 def create_glove_dataframe(df, count_minimum=10):
     # apply glove transformation
-    df = df[df["count"] >= count_minimum]
+    df = df[df["count"] >= count_minimum].copy()
     df["glove_weight"] = glove_weight(df["count"])
     df["glove_value"] = np.log(df["value"])
     logger.info("dataframe shape: %s.", df.shape)
@@ -156,6 +156,13 @@ def save_data(data, save_dir="data"):
     logger.info("interaction dataframe saved: %s.", csv_path)
 
     return data
+
+
+def main(url, dest, vocab_size, coverage, context_size, **kwargs):
+    download_data(url, dest)
+    text8 = load_data(dest)
+    data = process_data(text8, vocab_size, coverage, context_size)
+    save_data(data, dest)
 
 
 if __name__ == "__main__":
@@ -187,22 +194,12 @@ if __name__ == "__main__":
         default=5,
         help="size of context window (default: %(default)s)"
     )
-    parser.add_argument(
-        "--log-path",
-        default="main.log",
-        help="path of log file (default: %(default)s)"
-    )
     args = parser.parse_args()
-
-    logger = get_logger(__name__, log_path=args.log_path, console=True)
-    logger.debug("call: %s.", " ".join(sys.argv))
-    logger.debug("ArgumentParser: %s.", args)
+    logger.info("call: %s.", " ".join(sys.argv), extra={"ArgumentParser": args.__dict__})
+    logger.info("ArgumentParser: %s.", args.__dict__)
 
     try:
-        download_data(args.url, args.dest)
-        text8 = load_data(args.dest)
-        data = process_data(text8, args.vocab_size, args.coverage, args.context_size)
-        save_data(data, args.dest)
+        main(**args.__dict__)
     except KeyboardInterrupt:
         pass
     except Exception as e:

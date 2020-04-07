@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import tensorflow as tf
 
 from src.logger import get_logger
-from trainer.estimator import estimator_predict
+from src.models.estimator import estimator_predict
 
 logger = get_logger(__name__)
 
@@ -41,7 +41,7 @@ def format_predictions(predictions):
     return embeddings
 
 
-def main(job_dir, embeddings_json):
+def main(job_dir, embeddings_json, **kwargs):
     # load params
     params_json = os.path.join(job_dir, "params.json")
     params = load_json(params_json)

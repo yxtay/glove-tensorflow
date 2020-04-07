@@ -1,11 +1,13 @@
 # configs
 import json
-import logging
 import os
+import sys
 from argparse import ArgumentParser
 from datetime import datetime
 
 import tensorflow as tf
+
+from src.logger import get_logger
 
 TRAIN_CSV = "data/interaction.csv"
 VOCAB_TXT = "data/vocab.txt"
@@ -27,6 +29,9 @@ TARGET_NAME = "glove_value"
 WEIGHT_NAME = "glove_weight"
 POS_NAME = "value"
 NEG_NAME = "neg_weight"
+
+logger = get_logger(__name__)
+tf.get_logger().setLevel("ERROR")
 
 
 def get_function_args(params):
@@ -191,6 +196,8 @@ def parse_args():
         help="number of similar items (default: %(default)s)"
     )
     args = parser.parse_args()
+    logger.info("call: %s.", " ".join(sys.argv), extra={"ArgumentParser": args.__dict__})
+    logger.info("ArgumentParser: %s.", args.__dict__)
+
     params = init_params(args.__dict__)
-    tf.get_logger().setLevel(logging.ERROR)
     return params

@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from trainer.config import VOCAB_TXT, TOP_K, EMBEDDING_SIZE, L2_REG
-from trainer.utils import cosine_similarity
+from src.models.config_utils import EMBEDDING_SIZE, L2_REG, TOP_K, VOCAB_TXT
+from src.models.utils import cosine_similarity
 
 
 def get_embedding_layer(vocab_size, embedding_size=EMBEDDING_SIZE, l2_reg=L2_REG, name="embedding"):
@@ -134,5 +134,3 @@ def get_id_string_table(vocab_txt=VOCAB_TXT):
         tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
     ), "<UNK>", name="id_string_table")
     return lookup_table
-
-

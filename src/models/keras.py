@@ -1,12 +1,12 @@
 import tensorflow as tf
 
-from trainer.config import VOCAB_TXT, parse_args
-from trainer.data_utils import get_csv_dataset, get_keras_estimator_input_fn, get_serving_input_fn
-from trainer.model_utils import MatrixFactorisation, get_string_id_table
-from trainer.train_utils import (
+from src.models.config_utils import VOCAB_TXT, parse_args
+from src.models.data_utils import get_csv_dataset, get_keras_estimator_input_fn, get_serving_input_fn
+from src.models.model_utils import MatrixFactorisation, get_string_id_table
+from src.models.train_utils import (
     get_eval_spec, get_exporter, get_keras_callbacks, get_keras_estimator, get_optimizer, get_train_spec,
 )
-from trainer.utils import file_lines
+from src.models.utils import file_lines
 
 
 def build_compile_model(params):

@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 
 import tensorflow as tf
 
+from src.config import EMBEDDINGS_JSON, JOB_DIR
 from src.logger import get_logger
 from src.models.estimator import estimator_predict
 
@@ -41,7 +42,7 @@ def format_predictions(predictions):
     return embeddings
 
 
-def main(job_dir, embeddings_json, **kwargs):
+def main(job_dir=JOB_DIR, embeddings_json=EMBEDDINGS_JSON, **kwargs):
     # load params
     params_json = os.path.join(job_dir, "params.json")
     params = load_json(params_json)
@@ -58,12 +59,12 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
         "--job-dir",
-        default="checkpoints/glove",
+        default=JOB_DIR,
         help="job directory (default: %(default)s)"
     )
     parser.add_argument(
         "--embeddings-json",
-        default="checkpoints/embeddings/embeddings.json",
+        default=EMBEDDINGS_JSON,
         help="path to the embeddings json (default: %(default)s)"
     )
     args = parser.parse_args()

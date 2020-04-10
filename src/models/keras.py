@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-from src.models.config_utils import VOCAB_TXT, parse_args
+from src.config import VOCAB_TXT
+from src.models.config_utils import parse_args
 from src.models.data_utils import get_csv_dataset, get_keras_estimator_input_fn, get_serving_input_fn
 from src.models.model_utils import MatrixFactorisation, get_string_id_table
 from src.models.train_utils import (
@@ -43,6 +44,8 @@ def get_glove_dataset(row_col_names, vocab_txt=VOCAB_TXT, **kwargs):
 
 def main():
     params = parse_args()
+    params["serving_input_fn_args"] = {"int_features": [params["row_name"], params["col_name"]]}
+    save_params(params)
 
     # build & compile model
     model = build_compile_model(params)

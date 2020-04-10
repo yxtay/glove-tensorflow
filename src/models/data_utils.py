@@ -62,23 +62,36 @@ def get_keras_estimator_input_fn(dataset_fn=get_csv_dataset, **kwargs):
 
 
 def get_serving_input_fn(int_features=(), float_features=(), string_features=()):
-    def serving_input_fn():
-        features = {}
-        features.update({
-            key: tf.compat.v1.placeholder(tf.int32, [None], name=key)
-            for key in int_features
-        })
-        features.update({
-            key: tf.compat.v1.placeholder(tf.float32, [None], name=key)
-            for key in float_features
-        })
-        features.update({
-            key: tf.compat.v1.placeholder(tf.string, [None], name=key)
-            for key in string_features
-        })
-        return tf.estimator.export.ServingInputReceiver(
-            features=features,
-            receiver_tensors=features
-        )
+    features = {}
+    features.update({
+        key: tf.constant(0, name=key)
+        for key in int_features
+    })
+    features.update({
+        key: tf.constant(0., name=key)
+        for key in float_features
+    })
+    features.update({
+        key: tf.constant("", name=key)
+        for key in string_features
+    })
 
-    return serving_input_fn
+    return tf.estimator.export.build_raw_serving_input_receiver_fn(features)
+
+
+def get_parsing_serving_input_fn(int_features=(), float_features=(), string_features=()):
+    features = {}
+    features.update({
+        key: tf.FixedLenFeature((), tf.int32, name=key)
+        for key in int_features
+    })
+    features.update({
+        key: tf.FixedLenFeature((), tf.float32, name=key)
+        for key in float_features
+    })
+    features.update({
+        key: tf.FixedLenFeature((), tf.string, name=key)
+        for key in string_features
+    })
+
+    return tf.estimator.export.build_parsing_serving_input_receiver_fn(features)

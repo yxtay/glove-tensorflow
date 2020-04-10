@@ -7,28 +7,11 @@ from datetime import datetime
 
 import tensorflow as tf
 
+from src.config import (
+    BATCH_SIZE, COL_NAME, EMBEDDING_SIZE, JOB_DIR, L2_REG, LEARNING_RATE, NEG_FACTOR, NEG_NAME, OPTIMIZER, POS_NAME,
+    ROW_NAME, STEPS_PER_EPOCH, TARGET_NAME, TOP_K, TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT, WEIGHT_NAME,
+)
 from src.logger import get_logger
-
-TRAIN_CSV = "data/interaction.csv"
-VOCAB_TXT = "data/vocab.txt"
-JOB_DIR = "checkpoints/glove"
-EMBEDDING_SIZE = 64
-L2_REG = 0.01
-NEG_FACTOR = 1.
-OPTIMIZER = "Adam"
-LEARNING_RATE = 0.001
-BATCH_SIZE = 1024
-TRAIN_STEPS = 16384
-STEPS_PER_EPOCH = 16384
-TOP_K = 20
-
-# field_names
-ROW_NAME = "row_token"
-COL_NAME = "col_token"
-TARGET_NAME = "glove_value"
-WEIGHT_NAME = "glove_weight"
-POS_NAME = "value"
-NEG_NAME = "neg_weight"
 
 logger = get_logger(__name__)
 tf.get_logger().setLevel("ERROR")

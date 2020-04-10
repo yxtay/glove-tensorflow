@@ -9,12 +9,13 @@ import numpy as np
 import pandas as pd
 import requests
 
+from src.config import CONTEXT_SIZE, COVERAGE, DATA_DIR, TEXT8_URL, VOCAB_SIZE
 from src.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def download_data(url="http://mattmahoney.net/dc/text8.zip", dest_dir="data"):
+def download_data(url=TEXT8_URL, dest_dir=DATA_DIR):
     # prepare destination
     dest = Path(dest_dir) / Path(url).name
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,7 @@ def download_data(url="http://mattmahoney.net/dc/text8.zip", dest_dir="data"):
         logger.info("file extracted.")
 
 
-def load_data(src_dir="data"):
+def load_data(src_dir=DATA_DIR):
     file_path = Path(src_dir, "text8")
     with open(file_path) as f:
         text8 = f.read()
@@ -42,7 +43,7 @@ def load_data(src_dir="data"):
     return text8
 
 
-def process_data(text8, vocab_size=None, coverage=0.9, context_size=5):
+def process_data(text8, vocab_size=VOCAB_SIZE, coverage=COVERAGE, context_size=CONTEXT_SIZE):
     text8_tokens = text8.split()
 
     # create vocab
@@ -57,7 +58,7 @@ def process_data(text8, vocab_size=None, coverage=0.9, context_size=5):
     return {"vocabulary": df_vocab, "interaction": df_interaction}
 
 
-def create_vocabulary(text_tokens, vocab_size=None, coverage=0.9):
+def create_vocabulary(text_tokens, vocab_size=VOCAB_SIZE, coverage=COVERAGE):
     tokens_counter = Counter(text_tokens)
 
     # find cumulative proportion of token counts
@@ -80,7 +81,7 @@ def create_vocabulary(text_tokens, vocab_size=None, coverage=0.9):
     return df_vocab
 
 
-def create_interaction_dataframe(text_tokens, df_vocab, context_size=5):
+def create_interaction_dataframe(text_tokens, df_vocab, context_size=CONTEXT_SIZE):
     token2id = {token: i for i, token in enumerate(df_vocab["token"])}
     token_ids = (token2id.get(token, 0) for token in text_tokens)
     df = pd.DataFrame(list(enumerate(token_ids)), columns=["position", "token_id"])
@@ -138,7 +139,7 @@ def glove_weight(values, alpha=0.75, x_max=100):
     return np.clip(np.power(values / x_max, alpha), 0, 1)
 
 
-def save_data(data, save_dir="data"):
+def save_data(data, save_dir=DATA_DIR):
     # save vocab
     df_vocab = data["vocabulary"]
     csv_path = Path(save_dir, "vocab.csv")
@@ -169,29 +170,29 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Download, extract and prepare text8 data.")
     parser.add_argument(
         "--url",
-        default="http://mattmahoney.net/dc/text8.zip",
+        default=TEXT8_URL,
         help="url of text8 data (default: %(default)s)"
     )
     parser.add_argument(
         "--dest",
-        default="data",
+        default=DATA_DIR,
         help="destination directory for downloaded and extracted files (default: %(default)s)"
     )
     parser.add_argument(
         "--vocab-size",
-        default=None,
+        default=VOCAB_SIZE,
         help="maximum size of vocab (default: %(default)s)"
     )
     parser.add_argument(
         "--coverage",
         type=float,
-        default=0.9,
+        default=COVERAGE,
         help="token coverage to set token count cutoff (default: %(default)s)"
     )
     parser.add_argument(
         "--context-size",
         type=int,
-        default=5,
+        default=CONTEXT_SIZE,
         help="size of context window (default: %(default)s)"
     )
     args = parser.parse_args()

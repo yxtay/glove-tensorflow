@@ -7,10 +7,17 @@ SHELL := bash
 .DELETE_ON_ERROR:
 .SUFFIXES:
 
-CHECKPOINTS_DIR = checkpoints
-MODEL_NAME = estimator
-JOB_DIR = $(CHECKPOINTS_DIR)/$(subst _,-,$(MODEL_NAME))
-ARGS ?=
+ENVIRONMENT ?= dev
+ARGS =
+
+MODEL_NAME = $(shell python -m src.config MODEL_NAME)
+CHECKPOINTS_DIR = $(shell python -m src.config CHECKPOINTS_DIR)
+DATETIME := $(shell date +%Y%m%d-%H%M%S)
+JOB_NAME = $(subst _,-,$(MODEL_NAME)-$(DATETIME))
+JOB_DIR = $(CHECKPOINTS_DIR)/$(JOB_NAME)
+
+.PHONY: all
+all: data train embeddings
 
 .PHONY: data
 data:
@@ -27,6 +34,7 @@ docker-data:
 train:
 	python -m src.models.$(MODEL_NAME) \
 		--job-dir $(JOB_DIR) \
+		--disable-datetime-path \
 		$(ARGS)
 
 .PHONY: docker-train
@@ -36,6 +44,7 @@ docker-train:
 	  tensorflow/tensorflow:2.1.0-py3 \
 	  python -m src.models.$(MODEL_NAME) \
 	  --job-dir $(JOB_DIR) \
+	  --disable-datetime-path \
 	  $(ARGS)
 
 .PHONY: tensorboard
@@ -68,10 +77,7 @@ query:
 
 .PHONY: embeddings
 embeddings:
-	python -m src.model.export_embeddings --job-dir $(JOB_DIR)
-
-.PHONY: all
-all: data train
+	python -m src.models.export_embeddings --job-dir $(JOB_DIR)
 
 .PHONY: update-requirements
 update-requirements:

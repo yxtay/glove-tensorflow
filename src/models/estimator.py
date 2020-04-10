@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from src.models.config_utils import (
+from src.config import (
     COL_NAME, EMBEDDING_SIZE, L2_REG, LEARNING_RATE, OPTIMIZER, ROW_NAME, TARGET_NAME, TOP_K, VOCAB_TXT, WEIGHT_NAME,
-    parse_args,
 )
+from src.models.config_utils import parse_args
 from src.models.data_utils import get_csv_input_fn, get_serving_input_fn
 from src.models.model_utils import MatrixFactorisation, add_summary, get_predictions, get_string_id_table
 from src.models.train_utils import get_estimator, get_eval_spec, get_exporter, get_optimizer, get_train_spec

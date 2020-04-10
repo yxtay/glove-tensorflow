@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from src.models.config_utils import EMBEDDING_SIZE, L2_REG, TOP_K, VOCAB_TXT
+from src.config import EMBEDDING_SIZE, L2_REG, TOP_K, VOCAB_TXT
 from src.models.utils import cosine_similarity
 
 

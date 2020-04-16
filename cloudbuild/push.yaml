@@ -1,0 +1,68 @@
+steps:
+  # docker build main
+- name: ${_GCR_HOST}/cloud-builders/docker
+  id: pull-main
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      docker pull ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG} || exit 0
+  waitFor: ["-"]
+- name: ${_GCR_HOST}/cloud-builders/docker
+  id: build-main
+  args:
+    - build
+    - --build-arg
+    - ENVIRONMENT=${_ENVIRONMENT}
+    - --cache-from
+    - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG}
+    - -t
+    - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG}
+    - --file
+    - Dockerfile
+    - .
+  waitFor: [pull-main]
+- name: ${_GCR_HOST}/cloud-builders/docker
+  id: push-main
+  args:
+    - push
+    - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG}
+  waitFor: [build-main]
+  # docker build serving
+- name: ${_GCR_HOST}/cloud-builders/docker
+  id: pull-serving
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      docker pull ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG} || exit 0
+  waitFor: ["-"]
+- name: ${_GCR_HOST}/cloud-builders/docker
+  id: build-serving
+  args:
+    - build
+    - --cache-from
+    - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG}
+    - -t
+    - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG}
+    - --file
+    - serving.Dockerfile
+    - .
+  waitFor: [pull-serving]
+- name: ${_GCR_HOST}/cloud-builders/docker
+  id: push-serving
+  args:
+    - push
+    - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG}
+  waitFor: [build-serving]
+
+timeout: 600s
+substitutions:
+  _GCR_HOST: gcr.io
+  _APP_NAME: glove-tensorflow
+  _SERVING_IMAGE_NAME: glove-tensorflow-tfserving
+  _IMAGE_TAG: latest
+  _ENVIRONMENT: prod
+images:
+  - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG}
+  - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG}

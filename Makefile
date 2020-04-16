@@ -94,7 +94,7 @@ saved-model-cli:
 .PHONY: serving
 serving:
 	docker run --rm -p 8500:8500 -p 8501:8501 \
-	  --mount type=bind,source=$(shell pwd)/$(JOB_DIR)/export/exporter,target=/models/$(MODEL_NAME) \
+	  --mount type=bind,source=$(shell pwd)/$(EXPORT_DIR),target=/models/$(MODEL_NAME) \
 	  -e MODEL_NAME=$(MODEL_NAME) \
 	  tensorflow/serving:2.1.0
 

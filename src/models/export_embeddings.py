@@ -1,29 +1,13 @@
-import json
 import os
 import sys
 from argparse import ArgumentParser
 
-import tensorflow as tf
-
 from src.config import EMBEDDINGS_JSON, JOB_DIR
-from src.logger import get_logger
 from src.models.estimator import estimator_predict
+from src.utils.io import load_json, save_json
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def load_json(json_path):
-    with tf.io.gfile.GFile(json_path) as f:
-        json_obj = json.load(f)
-    logger.info("json loaded: %s.", json_path)
-    return json_obj
-
-
-def save_json(json_obj, json_path):
-    with tf.io.gfile.GFile(json_path, "w") as f:
-        json.dump(json_obj, f, indent=2)
-    logger.info("json saved: %s.", json_path)
-    return json_path
 
 
 def format_predictions(predictions):

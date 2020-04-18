@@ -11,7 +11,7 @@ from src.config import (
     BATCH_SIZE, COL_NAME, EMBEDDING_SIZE, JOB_DIR, L2_REG, LEARNING_RATE, NEG_FACTOR, NEG_NAME, OPTIMIZER, POS_NAME,
     ROW_NAME, STEPS_PER_EPOCH, TARGET_NAME, TOP_K, TRAIN_CSV, TRAIN_STEPS, VOCAB_TXT, WEIGHT_NAME,
 )
-from src.logger import get_logger
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 tf.get_logger().setLevel("ERROR")

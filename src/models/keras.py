@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from src.config import VOCAB_TXT
-from src.models.config_utils import parse_args
+from src.models.config_utils import parse_args, save_params
 from src.models.data_utils import get_csv_dataset, get_keras_estimator_input_fn, get_serving_input_fn
 from src.models.model_utils import MatrixFactorisation, get_string_id_table
 from src.models.train_utils import (

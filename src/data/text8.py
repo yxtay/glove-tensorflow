@@ -10,7 +10,7 @@ import pandas as pd
 import requests
 
 from src.config import CONTEXT_SIZE, COVERAGE, DATA_DIR, TEXT8_URL, VOCAB_SIZE
-from src.logger import get_logger
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

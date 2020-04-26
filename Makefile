@@ -208,7 +208,7 @@ docker-push-serving:
 
 .PHONY: cloud-run-deploy
 cloud-run-deploy:
-	gcloud run deploy ${APP_NAME} \
+	gcloud run deploy $(APP_NAME) \
 		--project $(GCP_PROJECT) \
 		--region us-central1 \
 		--platform managed \

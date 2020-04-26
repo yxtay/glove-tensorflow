@@ -2,7 +2,7 @@
 
 Implementation of GloVe using TensorFlow estimator API.
 
-The trainer module in this repository also allows for distributed model training and evaluation on Google Cloud Platform. Please refer to [distributed](distributed.md).
+The trainer module in this repository also allows for distributed model training and evaluation on Google Cloud Platform. Please refer to [distributed](cloud.md).
 
 ## Setup
 
@@ -312,9 +312,9 @@ Sample response
 }
 ```
 
-## Distributed
+## Cloud
 
-For distributed model training and evaluation, please refer to [distributed](distributed.md).
+For cloud model training and evaluation, please refer to [cloud](cloud.md).
 
 ## References
 

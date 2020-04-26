@@ -6,7 +6,7 @@ steps:
   args:
     - -c
     - |
-      docker pull ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_PR_NUMBER} || exit 0
+      docker pull ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG} || exit 0
   waitFor: ["-"]
 - name: ${_GCR_HOST}/cloud-builders/docker
   id: build-main
@@ -15,7 +15,7 @@ steps:
     - --build-arg
     - ENVIRONMENT=${_ENVIRONMENT}
     - --cache-from
-    - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_PR_NUMBER}
+    - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_IMAGE_TAG}
     - -t
     - ${_GCR_HOST}/${PROJECT_ID}/${_APP_NAME}:${_PR_NUMBER}
     - --file
@@ -35,14 +35,14 @@ steps:
   args:
     - -c
     - |
-      docker pull ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_PR_NUMBER} || exit 0
+      docker pull ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG} || exit 0
   waitFor: ["-"]
 - name: ${_GCR_HOST}/cloud-builders/docker
   id: build-serving
   args:
     - build
     - --cache-from
-    - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_PR_NUMBER}
+    - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_IMAGE_TAG}
     - -t
     - ${_GCR_HOST}/${PROJECT_ID}/${_SERVING_IMAGE_NAME}:${_PR_NUMBER}
     - --file

@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "glove-tensorflow"
+version = "0.1.0"
+description = ""
+authors = ["yuxuan.tay <wyextay@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.0.1"
+python-json-logger = "^0.1.11"
+requests = "^2.22.0"
+tensorflow = "^2.1.0"
+
+[tool.poetry.dev-dependencies]
+bandit = "*"
+black = { version = "*", allow-prereleases = true }
+flake8 = "*"
+isort = "*"
+jupyterlab = "*"
+mypy = "*"
+poetry = "*"
+pre-commit = "*"
+pytest = "*"
+pytest-cov = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,8 +1,0 @@
--c main.txt
-black
-flake8
-jupyterlab
-pre-commit
-pytest
-pytest-cov
-tabulate

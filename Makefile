@@ -3,9 +3,8 @@ MAKEFLAGS += --no-builtin-rules
 SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 .ONESHELL:
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := help
 .DELETE_ON_ERROR:
-.SUFFIXES:
 
 DOCKER_FILE := Dockerfile
 SERVING_DOCKER_FILE := serving.Dockerfile
@@ -44,6 +43,37 @@ JOB_DIR = $(CHECKPOINTS_DIR)/$(JOB_NAME)
 GCS_JOB_DIR = $(GCS_BUCKET_PATH)/$(JOB_DIR)
 GCS_MODEL_DIR = $(GCS_BUCKET_PATH)/$(CHECKPOINTS_DIR)/$(APP_NAME)
 GCS_EXPORT_PATH = $(GCS_BUCKET_PATH)/$(EXPORT_DIR)
+
+.PHONY: help
+help:  ## print help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+## dependencies
+
+.PHONY: deps-install
+deps-install:  ## install dependencies
+	pip install poetry
+	poetry install --no-root
+
+.PHONY: deps-install-ci
+deps-install-ci:
+	pip install poetry
+	poetry config virtualenvs.create false
+	poetry install --no-root
+	poetry show
+
+.PHONY: deps-update
+deps-update:
+	poetry update
+	poetry export --format requirements.txt --output requirements.txt --without-hashes
+
+requirements.txt: poetry.lock
+	poetry export --format requirements.txt --output requirements.txt --without-hashes
+
+requirements-dev.txt: poetry.lock
+	poetry export --dev --format requirements.txt --output requirements-dev.txt --without-hashes
+
+# train
 
 .PHONY: all
 all: data train embeddings
@@ -108,6 +138,8 @@ query:
 embeddings:
 	python -m src.models.export_embeddings --job-dir $(JOB_DIR)
 
+# ai-platform
+
 .PHONY: up-data
 up-data:
 	gsutil -m rsync -r $(DATA_DIR) $(GCS_BUCKET_PATH)/$(DATA_DIR)
@@ -147,19 +179,7 @@ dl-export:
 	mkdir -p $(EXPORT_DIR)
 	gsutil -m rsync -r $(GCS_EXPORT_PATH) $(EXPORT_DIR)
 
-.PHONY: update-requirements
-update-requirements:
-	pip install --upgrade pip setuptools pip-tools
-	pip-compile --upgrade --build-isolation --output-file requirements/main.txt requirements/main.in
-	pip-compile --upgrade --build-isolation --output-file requirements/dev.txt requirements/dev.in
-
-.PHONY: install-requirements
-install-requirements:
-	pip install -r requirements/main.txt -r requirements/dev.txt
-
-.PHONY: sync-requirements
-sync-requirements:
-	pip-sync requirements/main.txt requirements/dev.txt
+# docker
 
 .PHONY: docker-build
 docker-build:
@@ -205,6 +225,8 @@ docker-build-serving:
 .PHONY: docker-push-serving
 docker-push-serving:
 	docker push $(FULL_SERVING_IMAGE_NAME):$(IMAGE_TAG)
+
+# cloud run
 
 .PHONY: cloud-run-deploy
 cloud-run-deploy:

@@ -28,6 +28,7 @@ IMAGE_REPO = $(shell python -m src.config IMAGE_REPO)
 FULL_IMAGE_NAME = $(IMAGE_HOST)/$(IMAGE_REPO)/$(APP_NAME)
 FULL_SERVING_IMAGE_NAME = $(FULL_IMAGE_NAME)-tfserving
 IMAGE_TAG ?= latest
+TENSORFLOW_TAG = 2.5.1
 
 # paths
 DATA_DIR = $(shell python -m src.config DATA_DIR)
@@ -100,7 +101,7 @@ train:
 docker-train:
 	docker run --rm -w=/home \
 	  --mount type=bind,source=$(shell pwd),target=/home \
-	  tensorflow/tensorflow:2.1.0-py3 \
+	  tensorflow/tensorflow:$(TENSORFLOW_TAG) \
 	  python -m src.models.$(MODEL_NAME) \
 	  --job-dir $(JOB_DIR) \
 	  --disable-datetime-path \
@@ -114,7 +115,7 @@ tensorboard:
 docker-tensorboard:
 	docker run --rm -w=/home -p 6006:6006 \
 	  --mount type=bind,source=$(shell pwd),target=/home \
-	  tensorflow/tensorflow:2.1.0-py3 \
+	  tensorflow/tensorflow:$(TENSORFLOW_TAG) \
 	  tensorboard --logdir $(CHECKPOINTS_DIR)
 
 .PHONY: saved-model-cli
@@ -126,7 +127,7 @@ serving:
 	docker run --rm -p 8500:8500 -p 8501:8501 \
 	  --mount type=bind,source=$(shell pwd)/$(EXPORT_DIR),target=/models/$(MODEL_NAME) \
 	  -e MODEL_NAME=$(MODEL_NAME) \
-	  tensorflow/serving:2.1.0
+	  tensorflow/serving:$(TENSORFLOW_TAG)
 
 .PHONY: query
 query:

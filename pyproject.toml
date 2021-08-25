@@ -10,7 +10,7 @@ python = "^3.8"
 pandas = "^1.2.4"
 python-json-logger = "^0.1.11"
 requests = "^2.25.1"
-tensorflow = "^2.5.0"
+tensorflow = "^2.5.1"
 
 [tool.poetry.dev-dependencies]
 bandit = "*"
